@@ -1,0 +1,36 @@
+{
+  "name": "sci-developer-portal",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Portal de Documentação de API da SCI para clientes e parceiros terceiros — Vue 3 + Scalar, dirigido por um manifesto único de APIs, com pipeline de curadoria controlado pelo time de QA.",
+  "type": "module",
+  "scripts": {
+    "manifest:verify": "node scripts/verify-manifest.js",
+    "env:example": "node scripts/print-env-example.js",
+    "api:new": "node scripts/new-api.js",
+    "api:fetch": "node scripts/fetch-api.js",
+    "build:openapi": "npm run manifest:verify && npm run api:fetch && node scripts/build-openapi.js",
+    "check:openapi": "node scripts/check-openapi.js",
+    "dev": "npm run check:openapi && vite",
+    "build": "npm run build:openapi && vite build",
+    "preview": "npm run check:openapi && vite preview --port 5050",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@scalar/api-reference": "^1.62.7",
+    "@unhead/vue": "^2.1.4",
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.7",
+    "js-yaml": "^4.1.0",
+    "vue": "^3.5.13"
+  },
+  "devDependencies": {
+    "@happy-dom/global-registrator": "^20.10.6",
+    "@redocly/cli": "^2.39.0",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.0.7"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "POST /api/v1/auth/credencial/login": {
+    "responses": {
+      "200": {
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.SINTETICO-NAO-USAR-EM-PRODUCAO.assinatura-fake",
+        "expires_in": 3600,
+        "token_type": "Bearer"
+      }
+    }
+  }
+}

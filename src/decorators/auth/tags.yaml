@@ -1,0 +1,7 @@
+# Chaveado pelo nome EXATO da tag (tags[].name) no spec de origem desta API.
+
+Credencial:
+  description: |
+    Geração e renovação de token JWT a partir das credenciais de parceiro
+    e cliente. Todo token gerado aqui fica disponível automaticamente para
+    as demais APIs deste portal — não é preciso copiar e colar manualmente.

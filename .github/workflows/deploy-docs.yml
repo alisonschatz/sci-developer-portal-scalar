@@ -1,0 +1,82 @@
+name: Publicar Portal de Documentação
+
+on:
+  workflow_dispatch:
+    inputs:
+      motivo:
+        description: 'Motivo desta publicação (ex.: "RH Net Social — endpoint de dependentes atualizado")'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Motivo da publicação
+        run: echo "::notice::${{ inputs.motivo }}"
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Validar manifesto de APIs
+        run: npm run manifest:verify
+
+      # Todas as env vars abaixo precisam existir como GitHub Secrets — ver
+      # README, seção "Publicação (CI/CD)". A lista é derivada de
+      # apis.manifest.js; rode `npm run env:example` localmente sempre que
+      # adicionar uma API para conferir se algum secret novo ficou faltando.
+      - name: Baixar + lintar + empacotar as APIs
+        env:
+          AUTH_SOURCE_URL: ${{ secrets.AUTH_SOURCE_URL }}
+          AUTH_AUTH_TOKEN: ${{ secrets.AUTH_AUTH_TOKEN }}
+          RHNETSOCIAL_SOURCE_URL: ${{ secrets.RHNETSOCIAL_SOURCE_URL }}
+          RHNETSOCIAL_AUTH_TOKEN: ${{ secrets.RHNETSOCIAL_AUTH_TOKEN }}
+        run: npm run build:openapi
+
+      - name: Rodar testes automatizados
+        run: npm test
+
+      - name: Build do portal (Vite)
+        env:
+          # Ajuste para o nome real do repositório se ele publicar como
+          # GitHub Pages de PROJETO (https://<org>.github.io/<repo>/).
+          # Deixe vazio se publicar em um domínio próprio / Pages de usuário.
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+        run: npx vite build
+
+      - name: Upload do artefato do Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    # Configure "Required reviewers" em Settings → Environments → github-pages
+    # para que este job (e portanto a publicação) exija aprovação manual do
+    # time de QA antes de ir ao ar, mesmo depois do build passar.
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy no GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

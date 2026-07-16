@@ -1,0 +1,43 @@
+# Chaveado por "MÉTODO /caminho" (estável mesmo se o operationId mudar —
+# ver comentário no topo de src/plugins/business-plugin.js).
+#
+# `postResponseScript` vira a extensão `x-post-response` no OpenAPI final —
+# um script no formato Postman, executado pelo Scalar API Client depois de
+# cada "Test Request" bem-sucedido. Aqui é usado para gravar o token em
+# `pm.globals`, que é uma variável GLOBAL do workspace do Scalar — visível
+# em QUALQUER documento aberto no mesmo portal, não só na Auth.
+#
+# O nome da variável ('sci_auth_token') precisa bater exatamente com
+# SHARED_TOKEN_VARIABLE em apis.manifest.js — scripts/verify-shared-token.js
+# checa isso automaticamente no pipeline de build (ver package.json).
+#
+# Ver README, seção "Como o token é compartilhado entre as APIs", para as
+# fontes oficiais da Scalar que confirmam pm.globals, x-post-response e o
+# templating {{variavel}} em campo de autenticação.
+
+"POST /api/v1/auth/credencial/login":
+  summary: Gerar token
+  description: |
+    Autentica via HTTP Basic Auth (token de parceiro + token de cliente) e
+    retorna um novo JWT. Esse token fica automaticamente disponível para as
+    demais APIs deste portal — não é necessário copiar/colar manualmente.
+  postResponseScript: |
+    const data = pm.response.json();
+    if (data && typeof data.token === 'string' && data.token) {
+      pm.globals.set('sci_auth_token', data.token);
+      pm.test('Token capturado e compartilhado com as demais APIs', () => {
+        pm.expect(data.token).to.be.a('string');
+      });
+    }
+
+# TODO: confirmar com o time da API Auth o caminho exato do endpoint de
+# refresh de token, e preencher a chave abaixo (mesmo padrão do login).
+# "POST /api/v1/auth/credencial/refresh":
+#   summary: Renovar token
+#   description: |
+#     Renova um JWT ainda válido, sem exigir novo login.
+#   postResponseScript: |
+#     const data = pm.response.json();
+#     if (data && typeof data.token === 'string' && data.token) {
+#       pm.globals.set('sci_auth_token', data.token);
+#     }

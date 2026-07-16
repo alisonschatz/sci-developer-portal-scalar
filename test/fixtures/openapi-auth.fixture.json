@@ -1,0 +1,51 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "SCI - API Auth",
+    "version": "1.0.0",
+    "description": "placeholder"
+  },
+  "tags": [
+    { "name": "Credencial", "description": "placeholder vindo do backend" }
+  ],
+  "components": {
+    "securitySchemes": {
+      "basicAuth": { "type": "http", "scheme": "basic" }
+    }
+  },
+  "paths": {
+    "/api/v1/auth/credencial/login": {
+      "post": {
+        "operationId": "a1b2c3d4hash",
+        "tags": ["Credencial"],
+        "security": [{ "basicAuth": [] }],
+        "summary": "placeholder",
+        "responses": {
+          "200": {
+            "description": "Token gerado",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": { "type": "string" },
+                    "expires_in": { "type": "integer" },
+                    "token_type": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/debug-tokens": {
+      "get": {
+        "operationId": "internalOnlyHash",
+        "tags": ["Credencial"],
+        "summary": "Rota interna que a blacklist do fetch-api.js deve remover",
+        "responses": { "200": { "description": "ok" } }
+      }
+    }
+  }
+}

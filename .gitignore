@@ -1,0 +1,17 @@
+node_modules/
+dist/
+
+# Gerado por scripts/api:fetch a partir das APIs de produção — nunca commitar.
+src/base/
+
+# Gerado por scripts/build-openapi.js (lint + bundle) — nunca commitar.
+public/openapi/*.json
+
+# Gerado por scripts/generate-redocly-config.js a partir de apis.manifest.js.
+redocly.generated.yaml
+
+.env
+.env.local
+
+*.log
+.DS_Store

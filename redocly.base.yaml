@@ -1,0 +1,37 @@
+# Base da configuração do Redocly CLI — a parte que NÃO muda quando uma API
+# nova é adicionada. O bloco `apis:` é gerado à parte, a partir de
+# apis.manifest.js, por scripts/generate-redocly-config.js (ver esse arquivo
+# para o motivo de estar separado).
+#
+# Documentação: https://redocly.com/docs/cli/configuration
+
+extends:
+  - recommended
+
+# Regras de lint relaxadas: os specs vêm de outros times (gerados
+# automaticamente pelo backend de cada API) e este repositório não controla
+# como são anotados na origem. O objetivo do lint aqui é pegar specs
+# REALMENTE quebrados — não cobrar padrões de estilo que o QA não tem como
+# corrigir na origem.
+rules:
+  no-empty-servers: off
+  operation-summary: off
+  operation-description: off
+  security-defined: off
+  info-license: warn
+  operation-4xx-response: warn
+  no-unused-components: warn
+  # A RH Net Social (e potencialmente outras APIs futuras geradas pelo mesmo
+  # stack) produz o padrão "oneOf: [$ref] + nullable: true" sem repetir
+  # "type" — tecnicamente fora do JSON Schema estrito do OAS 3.0, mas
+  # amplamente tolerado por renderers de OpenAPI. Não é algo que o QA
+  # consiga corrigir na origem, então rebaixamos para warning.
+  # No Redocly CLI 2.x essa checagem de "nullable" saiu de dentro da
+  # "struct" e virou uma regra própria (nullable-type-sibling, "error" por
+  # padrão) — por isso as duas precisam ser rebaixadas aqui.
+  struct: warn
+  nullable-type-sibling: warn
+  spec-components-invalid-map-name: warn
+
+plugins:
+  - src/plugins/business-plugin.js
