@@ -30,14 +30,18 @@
       });
     }
 
-# TODO: confirmar com o time da API Auth o caminho exato do endpoint de
-# refresh de token, e preencher a chave abaixo (mesmo padrão do login).
-# "POST /api/v1/auth/credencial/refresh":
-#   summary: Renovar token
-#   description: |
-#     Renova um JWT ainda válido, sem exigir novo login.
-#   postResponseScript: |
-#     const data = pm.response.json();
-#     if (data && typeof data.token === 'string' && data.token) {
-#       pm.globals.set('sci_auth_token', data.token);
-#     }
+"POST /api/v1/auth/refresh":
+  summary: Atualiza o token JWT
+  description: |
+    Renova um JWT ainda válido (autenticação via Bearer com o token atual),
+    sem exigir novo login. O token renovado substitui automaticamente o
+    anterior na variável compartilhada — as demais APIs passam a usar o
+    token novo sem nenhuma ação manual.
+  postResponseScript: |
+    const data = pm.response.json();
+    if (data && typeof data.token === 'string' && data.token) {
+      pm.globals.set('sci_auth_token', data.token);
+      pm.test('Token renovado e compartilhado com as demais APIs', () => {
+        pm.expect(data.token).to.be.a('string');
+      });
+    }

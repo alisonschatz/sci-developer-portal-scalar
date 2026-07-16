@@ -64,7 +64,7 @@ test('os 4 campos por-documento (title/slug/default/authentication) NÃO vazam p
   assert.equal('authentication' in config, false);
 });
 
-test('sources[] continua com title/slug/default/authentication corretos por API', () => {
+test('sources[] continua com title/slug/default corretos por API', () => {
   const config = buildScalarConfiguration();
 
   const auth = config.sources.find((s) => s.slug === 'auth');
@@ -72,9 +72,28 @@ test('sources[] continua com title/slug/default/authentication corretos por API'
 
   assert.equal(auth.title, 'Autenticação');
   assert.equal(auth.default, true);
-  assert.equal('authentication' in auth, false, 'a API auth não consome o token, não deveria ter authentication pré-configurada');
 
   assert.equal(rh.title, 'RH Net Social');
   assert.equal(rh.default, false);
   assert.equal(rh.authentication.preferredSecurityScheme, 'bearerAuth');
+});
+
+test('auth (securitySchemes plural): os dois schemes reais vêm preferidos, só "Atualizar JWT" recebe o token compartilhado', () => {
+  const config = buildScalarConfiguration();
+  const auth = config.sources.find((s) => s.slug === 'auth');
+
+  // "Gerar JWT" (Basic — credenciais de parceiro/cliente) e "Atualizar
+  // JWT" (Bearer — usado no refresh) precisam vir os dois disponíveis
+  // sem precisar selecionar na mão — preferredSecurityScheme como array
+  // é uma relação "OU", confirmada no schema real do Scalar.
+  assert.deepEqual(auth.authentication.preferredSecurityScheme, ['Gerar JWT', 'Atualizar JWT']);
+
+  // "Gerar JWT" é quem GERA o token — não existe variável compartilhada
+  // pra pré-preencher as credenciais de parceiro/cliente, então não deve
+  // ter entrada em securitySchemes.
+  assert.equal('Gerar JWT' in auth.authentication.securitySchemes, false);
+
+  // "Atualizar JWT" precisa apresentar o token atual para renovar —
+  // pré-preenchido com a mesma variável compartilhada.
+  assert.equal(auth.authentication.securitySchemes['Atualizar JWT'].token, '{{sci_auth_token}}');
 });

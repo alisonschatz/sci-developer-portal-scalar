@@ -51,19 +51,35 @@
  *                                     Nome exato do security scheme (em
  *                                     components.securitySchemes no spec de origem)
  *                                     que deve ser pré-preenchido com o token
- *                                     compartilhado. Use `null` para a própria API
- *                                     `auth` (ela não consome o token, ela o gera).
+ *                                     compartilhado. Caso simples — a maioria das
+ *                                     APIs futuras deve ter só UM scheme relevante
+ *                                     (ex.: um Bearer só). Use `null` quando a API
+ *                                     não consome o token compartilhado (hoje, só a
+ *                                     própria `auth` — que usa `securitySchemes`,
+ *                                     abaixo, por ter mais de um scheme).
+ * @property {Array<{name: string, preferred?: boolean, prefill?: object}>} [securitySchemes]
+ *                                     Caso rico, para APIs com MAIS de um security
+ *                                     scheme relevante (hoje, só `auth`: "Gerar JWT"
+ *                                     é Basic — não tem o que pré-preencher, são as
+ *                                     credenciais que GERAM o token; "Atualizar JWT"
+ *                                     é Bearer — pré-preenchido com o token
+ *                                     compartilhado, porque renovar exige apresentar
+ *                                     o token atual). `name` precisa bater EXATAMENTE
+ *                                     com a chave em components.securitySchemes do
+ *                                     spec de origem. `preferred: true` inclui esse
+ *                                     scheme em `preferredSecurityScheme` (aceita
+ *                                     vários — foram confirmados na Scalar como uma
+ *                                     relação "OU": os schemes marcados aparecem
+ *                                     disponíveis para alternar, sem precisar
+ *                                     selecionar na mão). `prefill` é passado direto
+ *                                     para `authentication.securitySchemes[name]` do
+ *                                     Scalar — o formato depende do tipo do scheme
+ *                                     (`{ token }` para Bearer, `{ username,
+ *                                     password }` para Basic, `{ value }` para API
+ *                                     Key). Use OU `securityScheme` OU
+ *                                     `securitySchemes`, nunca os dois na mesma API.
  * @property {boolean} [default]      Se true, esta API abre por padrão no portal.
  *                                     Deve haver exatamente uma com `default: true`.
- * @property {{method: string, path: string}} [loginRequest]
- *                                     Só na API isAuthProvider: método + caminho da
- *                                     operação de login, usados pelo composable
- *                                     useTokenCapture (src/composables) para saber
- *                                     qual resposta observar via `customFetch` do
- *                                     Scalar e mostrar o banner de token capturado.
- * @property {string} [tokenResponseField]
- *                                     Só na API isAuthProvider: nome do campo, no
- *                                     JSON de resposta do login, que contém o JWT.
  */
 
 /** Nome da variável global do Scalar que carrega o JWT entre documentos.
@@ -82,9 +98,21 @@ export const apis = [
     sourceTokenEnv: 'AUTH_AUTH_TOKEN',
     serverUrl: 'https://api-auth.sci.com.br',
     securityScheme: null,
+    // Nomes conferidos direto no spec real da API Auth (auth.json).
+    securitySchemes: [
+      {
+        name: 'Gerar JWT', // HTTP Basic — username/password = token de parceiro/cliente
+        preferred: true, // já vem selecionado no painel de auth, sem precisar escolher
+        // Sem `prefill`: username/password são as credenciais que GERAM o
+        // token — não existe variável compartilhada para preencher aqui.
+      },
+      {
+        name: 'Atualizar JWT', // HTTP Bearer — usado pelo endpoint de refresh
+        preferred: true,
+        prefill: { token: `{{${SHARED_TOKEN_VARIABLE}}}` }, // mesmo token que "Gerar JWT" acabou de gerar
+      },
+    ],
     default: true,
-    loginRequest: { method: 'POST', path: '/api/v1/auth/credencial/login' },
-    tokenResponseField: 'token',
   },
   {
     id: 'rhnetsocial',
@@ -157,18 +185,28 @@ export function validateManifest(list = apis) {
 
     if (api.isAuthProvider) {
       authProviderCount += 1;
-      if (!api.loginRequest || !api.loginRequest.method || !api.loginRequest.path) {
-        errors.push(`API "${api.id}" é isAuthProvider mas não define loginRequest { method, path }.`);
-      }
-      if (!api.tokenResponseField) {
-        errors.push(`API "${api.id}" é isAuthProvider mas não define tokenResponseField.`);
-      }
     }
     if (api.default) defaultCount += 1;
 
-    if (!api.isAuthProvider && !api.securityScheme) {
+    if (api.securityScheme && api.securitySchemes) {
       errors.push(
-        `API "${api.id}" não é a auth provider mas não define securityScheme — ` +
+        `API "${api.id}" define securityScheme E securitySchemes — use só um dos dois (securitySchemes para múltiplos schemes, securityScheme para o caso simples de um só).`
+      );
+    }
+
+    if (api.securitySchemes) {
+      if (!Array.isArray(api.securitySchemes) || api.securitySchemes.length === 0) {
+        errors.push(`API "${api.id}" define securitySchemes, mas não é um array não-vazio.`);
+      } else {
+        for (const scheme of api.securitySchemes) {
+          if (!scheme.name) errors.push(`API "${api.id}" tem uma entrada em securitySchemes sem "name".`);
+        }
+      }
+    }
+
+    if (!api.isAuthProvider && !api.securityScheme && !api.securitySchemes) {
+      errors.push(
+        `API "${api.id}" não é a auth provider mas não define securityScheme nem securitySchemes — ` +
           'ela não vai receber o token compartilhado automaticamente. Se isso for ' +
           'intencional (API pública, sem auth), defina securityScheme: null explicitamente.'
       );

@@ -36,7 +36,7 @@ Nesta versão:
 | Adicionar API nova | Editar 4+ arquivos à mão | Editar **1 array** em `apis.manifest.js` |
 | Compartilhamento de token | Funcionava só para RH Net Social, hardcoded | Automático para **qualquer** API do manifesto |
 | Bug do header/sidebar | Presente (posicionamento manual) | Corrigido com o mecanismo oficial do Scalar |
-| Pipeline testado | "Não testei num navegador real" (README da v1) | 50 testes automatizados, incluindo o pipeline Redocly rodando de verdade — ver [Testes](#testes-automatizados) |
+| Pipeline testado | "Não testei num navegador real" (README da v1) | 46 testes automatizados, incluindo o pipeline Redocly rodando de verdade — ver [Testes](#testes-automatizados) |
 | Callouts no overview | `<!-- theme: warning -->` (sintaxe não confirmada) | `> [!WARNING]` — sintaxe GFM que o Scalar documenta oficialmente<sup>[2]</sup> |
 
 ---
@@ -69,31 +69,37 @@ Este é o requisito mais importante do pedido original: a Auth é usada por
 **todas** as APIs futuras, e isso precisa ficar óbvio para quem usa o
 portal — não só funcionar por baixo dos panos.
 
-**Mecanismo (3 peças, todas documentadas oficialmente pelo Scalar):**
+**Mecanismo (2 peças, todas documentadas oficialmente pelo Scalar):**
 
-1. O login da API `auth` tem um `x-post-response` (formato Postman,
-   configurado em `src/decorators/auth/descriptions.yaml`) que roda
-   `pm.globals.set('sci_auth_token', token)` depois de um "Test Request"
-   bem-sucedido. `pm.globals` é uma variável **global do workspace** — ao
-   contrário de `pm.environment`, ela é visível em **qualquer documento**
-   aberto no mesmo portal, não só na Auth<sup>[3]</sup>.
-2. O campo de autenticação de cada API consumidora (`src/config/scalar.config.js`,
-   gerado a partir do manifesto) é pré-preenchido com `{{sci_auth_token}}`
-   — a sintaxe de variável do Scalar, que todo campo de autenticação aceita
-   e resolve em tempo de requisição<sup>[4]</sup>.
-3. **Banner visível (garantia).** Independente do item 1 funcionar
-   perfeitamente em toda situação, um `customFetch` (hook oficial do
-   Scalar, usado tanto para carregar specs quanto para as chamadas de
-   "Test Request"<sup>[5]</sup>) observa a resposta do login e mostra um
-   banner com **Copiar token** e um botão **Ir para →** para cada API que
-   consome o token — a lista desses botões vem do manifesto, então uma
-   API nova aparece ali sem precisar tocar em nenhum componente.
+1. O login (`POST /api/v1/auth/credencial/login`) e o refresh
+   (`POST /api/v1/auth/refresh`) da API `auth` têm um `x-post-response`
+   (formato Postman, configurado em `src/decorators/auth/descriptions.yaml`)
+   que roda `pm.globals.set('sci_auth_token', token)` depois de um "Test
+   Request" bem-sucedido. `pm.globals` é uma variável **global do
+   workspace** — ao contrário de `pm.environment`, ela é visível em
+   **qualquer documento** aberto no mesmo portal, não só na Auth<sup>[3]</sup>.
+2. O campo de autenticação de cada API consumidora
+   (`src/config/scalar.config.js`, gerado a partir do manifesto) é
+   pré-preenchido com `{{sci_auth_token}}` — a sintaxe de variável do
+   Scalar, que todo campo de autenticação aceita e resolve em tempo de
+   requisição<sup>[4]</sup>.
+
+Na própria API `auth`, os dois security schemes reais — confirmados no
+spec de produção — vêm pré-configurados: **"Gerar JWT"** (Basic, usado no
+login) e **"Atualizar JWT"** (Bearer, usado no refresh) aparecem os dois
+já disponíveis no painel de autenticação (`preferredSecurityScheme` como
+array — uma relação "OU", confirmada no schema do Scalar), e "Atualizar
+JWT" já vem preenchido com `{{sci_auth_token}}` — a mesma variável que o
+login acabou de gerar. Ver `apis.manifest.js`, entrada `auth`.
 
 **Por que isso escala para dezenas de APIs sem código extra:** como
 `pm.globals` é global (não por documento), uma API nova só precisa
 declarar, no manifesto, qual `securityScheme` deve receber o token —
 `src/config/scalar.config.js` já resolve a autenticação sozinho. Nenhuma
-API nova precisa saber como o token foi gerado.
+API nova precisa saber como o token foi gerado. Para APIs com mais de um
+security scheme relevante (como a própria Auth), `securitySchemes`
+(plural) permite configurar cada scheme individualmente — ver o
+comentário em `apis.manifest.js` e `docs/arquitetura.md`, decisão 11.
 
 `scripts/verify-shared-token.js` roda automaticamente antes de cada build
 e falha se a API de auth parar de gravar a variável esperada, ou se
@@ -101,17 +107,31 @@ alguma outra API tentar gravar a mesma variável (duas fontes de verdade
 concorrentes) — ver `test/verify-shared-token.test.js` para os casos
 cobertos.
 
-> **O que ainda depende de QA manual:** as três peças acima são
-> individualmente confirmadas na documentação atual do Scalar, e o
-> pipeline de geração do OpenAPI final (com `x-post-response` e os
-> demais decorators aplicados) foi testado de ponta a ponta com o Redocly
-> real — ver [Testes](#testes-automatizados). O que não foi possível
-> testar neste ambiente é a combinação rodando num **navegador real**
-> contra o Scalar renderizado (preenchimento automático do campo de auth
-> a partir de `pm.globals` em tempo real). Se isso não funcionar
-> exatamente como esperado em algum caso de borda, o banner (peça 3)
-> garante que a experiência não fica pior que "copiar e colar
-> manualmente".
+> [!IMPORTANT]
+> **Pendente de confirmação: nome do security scheme da RH Net Social.**
+> `apis.manifest.js` assume `securityScheme: 'bearerAuth'` para a RH Net
+> Social — um nome genérico, nunca confirmado contra o spec real dela
+> (ao contrário da Auth, cujo `auth.json` real já foi conferido e corrigiu
+> os nomes "Gerar JWT"/"Atualizar JWT", bem diferentes do que estava
+> assumido antes). Se o nome real na RH Net Social for outro, é
+> exatamente por aí que o preenchimento automático do token falha nessa
+> API — o Scalar só aplica o valor pré-configurado no scheme cujo nome
+> bater exatamente com `components.securitySchemes` do spec de origem.
+> Confira o nome exato (rode `npm run api:fetch` e olhe
+> `src/base/openapi-rhnetsocial.json` → `components.securitySchemes`, ou
+> abra o spec publicado pela própria API) e corrija `securityScheme` no
+> manifesto se for diferente de `'bearerAuth'`.
+
+> **Sem banner de confirmação, de propósito.** Versões anteriores deste
+> portal tinham um banner ("Token copiado ✓" + botões "Ir para →") como
+> uma segunda camada de garantia, via `customFetch`. Foi removido: com os
+> nomes de scheme corretos e os dois mecanismos acima funcionando, o
+> preenchimento automático já é a experiência principal, e manter uma UI
+> extra só pra confirmar visualmente o que já deveria funcionar sozinho
+> deixou de valer a complexidade. Ver `docs/arquitetura.md`, decisão 10,
+> para o raciocínio completo (incluindo o trade-off: sem o banner, um
+> eventual problema de preenchimento automático fica silencioso, sem
+> nenhum aviso na tela).
 
 ---
 
@@ -177,7 +197,7 @@ npm run dev               # check:openapi + vite (modo desenvolvimento)
 npm run build              # build:openapi + vite build → dist/
 npm run preview           # check:openapi + vite preview (serve dist/ localmente)
 
-npm test                  # 50 testes automatizados (unitários + integração Redocly real)
+npm test                  # 46 testes automatizados (unitários + integração Redocly real)
 ```
 
 ## Como adicionar uma API nova
@@ -208,7 +228,7 @@ leem o manifesto e se ajustam sozinhos.
 npm test
 ```
 
-50 testes (`node:test`, com `@happy-dom/global-registrator` como única
+46 testes (`node:test`, com `@happy-dom/global-registrator` como única
 dependência de teste extra — necessária só para o teste que monta um
 componente Vue de verdade), cobrindo:
 
@@ -221,13 +241,13 @@ componente Vue de verdade), cobrindo:
 - **`scripts/verify-shared-token.js`** — detecção de `pm.globals.set` no
   script de post-response, incluindo os casos de confusão (nome parecido,
   `pm.environment` em vez de `pm.globals`).
-- **`src/composables/useTokenCapture.js`** — reconhecimento da requisição
-  de login e extração do token da resposta.
 - **`src/config/scalar.config.js`** — trava os valores da configuration
-  global adotada (tema, sidebar, telemetria etc.) e confirma que os 4
-  campos por-documento (`title`/`slug`/`default`/`authentication`) não
-  vazam para o nível global — ver README, seção "Header 100% integrado",
-  e `docs/arquitetura.md`, decisão 8.
+  global adotada (tema, sidebar, telemetria etc.), o caso rico de
+  múltiplos security schemes da Auth (os dois preferidos, só "Atualizar
+  JWT" recebendo o token), e confirma que os 4 campos por-documento
+  (`title`/`slug`/`default`/`authentication`) não vazam para o nível
+  global — ver README, seção "Header 100% integrado", e
+  `docs/arquitetura.md`, decisões 8 e 11.
 - **`src/composables/useSidebarStickyOffset.js`** — com DOM real
   (`@happy-dom/global-registrator`), monta uma estrutura de sidebar
   fake (marca + seletor + busca + `.custom-scroll` + rodapé) e confirma
@@ -321,10 +341,9 @@ sci-developer-portal/
 │   ├── App.vue
 │   ├── style.css
 │   ├── components/
-│   │   ├── SidebarBrand.vue            # Marca dentro do slot sidebar-start do Scalar
-│   │   └── TokenBanner.vue             # Banner de token, lista de APIs dinâmica
+│   │   └── SidebarBrand.vue            # Marca dentro do slot sidebar-start do Scalar
 │   ├── composables/
-│   │   └── useTokenCapture.js          # customFetch: observa o login, expõe o token
+│   │   └── useSidebarStickyOffset.js   # Mede e publica --scalar-sidebar-sticky-offset
 │   ├── config/
 │   │   └── scalar.config.js            # Monta sources[] a partir do manifesto
 │   ├── plugins/
@@ -345,7 +364,7 @@ sci-developer-portal/
 ├── public/
 │   ├── assets/sci-logo.png
 │   └── openapi/                        # Gerado pelo pipeline (git-ignored)
-├── test/                               # 50 testes — ver seção "Testes automatizados"
+├── test/                               # 46 testes — ver seção "Testes automatizados"
 └── docs/
     ├── arquitetura.md                  # Decisões técnicas + fontes oficiais do Scalar
     └── adicionando-uma-nova-api.md     # Passo a passo completo

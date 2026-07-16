@@ -83,6 +83,58 @@ test('API que não é auth provider e não define securityScheme gera erro (evit
   assert.ok(errors.some((e) => e.includes('nova') && e.includes('securityScheme')));
 });
 
+test('rejeita securityScheme E securitySchemes definidos juntos na mesma API', () => {
+  const errors = validateManifest([
+    {
+      id: 'auth',
+      slug: 'auth',
+      sourceUrlEnv: 'X',
+      serverUrl: 'https://x',
+      isAuthProvider: true,
+      default: true,
+      securityScheme: 'bearerAuth',
+      securitySchemes: [{ name: 'algumScheme' }],
+    },
+  ]);
+  assert.ok(errors.some((e) => e.includes('securityScheme E securitySchemes')));
+});
+
+test('rejeita securitySchemes vazio ou com entrada sem name', () => {
+  const vazio = validateManifest([
+    { id: 'auth', slug: 'auth', sourceUrlEnv: 'X', serverUrl: 'https://x', isAuthProvider: true, default: true, securitySchemes: [] },
+  ]);
+  assert.ok(vazio.some((e) => e.includes('não é um array não-vazio')));
+
+  const semName = validateManifest([
+    {
+      id: 'auth',
+      slug: 'auth',
+      sourceUrlEnv: 'X',
+      serverUrl: 'https://x',
+      isAuthProvider: true,
+      default: true,
+      securitySchemes: [{ preferred: true }],
+    },
+  ]);
+  assert.ok(semName.some((e) => e.includes('sem "name"')));
+});
+
+test('aceita securitySchemes (plural) como alternativa válida a securityScheme numa API não-auth', () => {
+  const errors = validateManifest([
+    { id: 'auth', slug: 'auth', sourceUrlEnv: 'X', serverUrl: 'https://x', isAuthProvider: true, default: true, securityScheme: null },
+    {
+      id: 'multi',
+      slug: 'multi',
+      sourceUrlEnv: 'Y',
+      serverUrl: 'https://y',
+      isAuthProvider: false,
+      default: false,
+      securitySchemes: [{ name: 'algumScheme', preferred: true }],
+    },
+  ]);
+  assert.deepEqual(errors, []);
+});
+
 test('sanity check: todas as APIs reais do manifesto têm decorators previstos', () => {
   // Não checa o filesystem aqui (isso é papel de outro script), só a forma dos dados.
   for (const api of apis) {

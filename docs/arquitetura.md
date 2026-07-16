@@ -19,9 +19,10 @@ categórica — ele **é** Vue. Cada camada que se soma entre "escrever
 bundle padronizado via `<script src="cdn...">` e chamar
 `Scalar.createApiReference(...)` numa API imperativa" é uma camada a
 menos de controle: menos acesso a reatividade nativa (o `configuration`
-pode ser um `computed`, como é feito aqui para plugar o `customFetch`),
-menos previsibilidade de versão (CDN aponta pra `latest` por padrão), e
-um SSR/hidratação mais difícil se um dia o portal precisar disso.
+pode ser um `computed`, como é feito aqui para resolver
+`import.meta.env.BASE_URL`), menos previsibilidade de versão (CDN aponta
+pra `latest` por padrão), e um SSR/hidratação mais difícil se um dia o
+portal precisar disso.
 
 Trade-off honesto: a build de CDN é mais simples para quem não quer
 nenhum passo de build. Como este projeto já tinha um pipeline Node
@@ -29,7 +30,11 @@ nenhum passo de build. Como este projeto já tinha um pipeline Node
 dependência nova de categoria — só troca "servir HTML estático" por
 "servir o output de um build", o que GitHub Pages faz igualmente bem.
 
-## 2. `customFetch` em vez de monkey-patch de `window.fetch`
+## 2. `customFetch` em vez de monkey-patch de `window.fetch` (histórico — removido na decisão 10)
+
+*Esta decisão não está mais implementada no código — ver decisão 10. Fica
+registrada porque o raciocínio ainda é válido caso um mecanismo parecido
+volte a ser necessário no futuro.*
 
 A v1 sobrescrevia `window.fetch` globalmente, na esperança de capturar só
 a resposta do login. Isso tem dois problemas: (a) intercepta *qualquer*
@@ -41,7 +46,7 @@ silenciosamente.
 A configuração do Scalar aceita `customFetch`: uma função usada tanto
 para carregar o OpenAPI quanto para as chamadas de "Test Request" do
 cliente embutido — ou seja, o hook *pretendido* para observar/adaptar
-requisições. `src/composables/useTokenCapture.js` usa exatamente isso.
+requisições, caso o banner (ou algo parecido) volte a ser necessário.
 
 ## 3. `pm.globals` como o mecanismo de token compartilhado
 
@@ -59,11 +64,10 @@ seguida, que **todo** campo de autenticação aceita variáveis com a
 sintaxe `{{ variavel }}`. As duas peças (gravar em `pm.globals`, ler via
 `{{}}`) são individualmente confirmadas na documentação atual — não achei
 um exemplo oficial único combinando as duas coisas através de dois
-*documentos diferentes* dentro do mesmo `sources[]`, especificamente. É
-por isso que a arquitetura mantém uma segunda camada garantida (o banner,
-via `customFetch`) — se a combinação não se comportar exatamente como
-esperado em algum caso de borda, a experiência degrada para "copiar e
-colar", não para "quebrado silenciosamente".
+*documentos diferentes* dentro do mesmo `sources[]`, especificamente.
+Até a decisão 10, a arquitetura mantinha uma segunda camada garantida (um
+banner) para esse caso de borda; ela foi removida — ver decisão 10 para
+o porquê e o trade-off aceito.
 
 ## 4. Header integrado — de `--scalar-custom-header-height` para o slot `sidebar-start`
 
@@ -344,6 +348,66 @@ corrigidos de `20` para `22` — o log do mesmo Actions run mostrou
 `node >= 22`. Não estava quebrando nada ainda (só warnings), mas era
 questão de tempo.
 
+## 10. Remoção do banner de token
+
+O banner ("Token gerado com sucesso" + botões "Copiar" / "Ir para →")
+existia como uma segunda camada de garantia, via `customFetch`, para o
+caso de o preenchimento automático (`pm.globals` + `{{variável}}`) não
+funcionar por algum motivo. Foi removido a pedido explícito, depois de
+confirmar — com o `auth.json` real — que a causa mais provável de o
+preenchimento automático não estar funcionando entre documentos não era
+o mecanismo em si, e sim **nomes de security scheme incorretos** (ver
+decisão 11): o banner mascarava esse sintoma ao dar uma confirmação
+visual de "token capturado", mesmo quando esse token nunca chegava a
+preencher o campo de autenticação de outra API por causa do nome errado.
+
+**Trade-off aceito, explicitamente:** sem o banner, se o preenchimento
+automático parar de funcionar numa versão futura do Scalar (ou numa API
+nova com um scheme configurado errado), não há mais nenhum aviso na
+tela — a pessoa só percebe ao tentar uma chamada e receber `401`. Isso
+foi julgado aceitável porque (a) a causa raiz mais provável de falha
+(nome de scheme errado) agora tem uma checagem documentada no README
+para conferir antes de publicar uma API nova, e (b) `persistAuth: true`
+e os campos de autenticação continuam editáveis manualmente a qualquer
+momento — o pior caso volta a ser "preencher à mão", não "impossível de
+usar".
+
+Arquivos removidos: `src/components/TokenBanner.vue`,
+`src/composables/useTokenCapture.js`, `test/token-capture.test.js`.
+`App.vue` voltou a ser só `<ApiReference>` com o slot `sidebar-start`.
+
+## 11. Nomes reais dos security schemes, e `securitySchemes` (plural)
+
+O `auth.json` real (fornecido pelo usuário) revelou que os nomes de
+security scheme assumidos no manifesto estavam errados — não
+"basicAuth"/"bearerAuth" genéricos, e sim **"Gerar JWT"** (Basic, no
+login) e **"Atualizar JWT"** (Bearer, no refresh), com espaço no nome.
+Isso importa porque o Scalar só aplica um valor de autenticação
+pré-configurado no security scheme cujo **nome bate exatamente** com
+`components.securitySchemes` do spec de origem — um nome errado não dá
+erro nenhum, só silenciosamente nunca preenche nada. Esse é o suspeito
+mais provável para "a geração e persistência de token para as demais
+páginas não está funcionando": o nome assumido para a RH Net Social
+(`'bearerAuth'`) nunca foi conferido contra o spec real dela, ao
+contrário da Auth agora.
+
+A Auth também revelou uma necessidade nova: ela tem **dois** security
+schemes relevantes, com comportamentos diferentes — "Gerar JWT" (as
+credenciais que geram o token; nada para pré-preencher) e "Atualizar
+JWT" (precisa do token atual para renovar; pré-preenchido com
+`{{sci_auth_token}}`). O campo `securityScheme` (singular) do manifesto,
+usado por toda API consumidora simples, não tinha como expressar "dois
+schemes, cada um com seu próprio prefill". `apis.manifest.js` ganhou um
+campo irmão, `securitySchemes` (plural, array), para esse caso — e
+`buildScalarSources()` em `src/config/scalar.config.js` monta
+`preferredSecurityScheme` como array quando mais de um scheme é marcado
+`preferred: true`, confirmado como uma relação "OU" no schema real do
+Scalar (`node_modules/@scalar/types/dist/api-reference/authentication-configuration.d.ts`).
+
+Uma API futura só precisa do campo plural se tiver mais de um scheme
+relevante — o caso comum (um scheme Bearer só) continua usando o campo
+`securityScheme` singular, sem nenhuma mudança.
+
 ## O que foi testado de verdade neste ambiente
 
 Diferente da v1 (cujo README listava quase tudo como "não testei, sandbox
@@ -393,13 +457,18 @@ verdade continua importante, mesmo com bem mais coisa testada que na v1:
 - **Preenchimento automático do token em tempo real** — a leitura de
   `pm.globals` pelo campo de autenticação de outro documento, dentro da
   interface renderizada do Scalar, é uma interação de UI que só um
-  navegador real exercita. O banner (camada 2) é a garantia caso isso não
-  se comporte exatamente como esperado.
-- **Link cruzado por hash** (`window.location.hash = slug` no botão "Ir
-  para →") — é o mecanismo documentado para trocar de documento num
-  `sources[]` com roteamento hash-based (o padrão para hospedagem
-  estática como GitHub Pages), mas o comportamento exato de scroll/foco
-  ao trocar de aba não foi observado visualmente.
+  navegador real exercita. Sem o banner (removido — decisão 10), não há
+  mais nenhuma confirmação visual caso isso não se comporte exatamente
+  como esperado — ver o item de baixo, que é a lacuna concreta mais
+  provável hoje.
+- **Nome do security scheme da RH Net Social** — assumido como
+  `'bearerAuth'` no manifesto, nunca confirmado contra o spec real dela
+  (ao contrário da Auth, cujo `auth.json` real revelou nomes bem
+  diferentes do que estava assumido: "Gerar JWT"/"Atualizar JWT"). Se o
+  nome real for outro, o preenchimento automático do token na RH Net
+  Social simplesmente não funciona — silenciosamente, sem erro. Ver
+  README, seção "Como o token é compartilhado entre as APIs", para como
+  conferir.
 - **OAuth2 / fluxos de autenticação mais complexos** — o projeto hoje só
   lida com Bearer token via login customizado. Se uma API futura da SCI
   usar OAuth2, o Scalar tem suporte nativo a isso (fluxos completos,

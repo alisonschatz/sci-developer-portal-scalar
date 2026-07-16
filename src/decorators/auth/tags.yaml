@@ -1,6 +1,7 @@
 # Chaveado pelo nome EXATO da tag (tags[].name) no spec de origem desta API.
+# Nome confirmado no spec real de produção (auth.json): "Autenticação".
 
-Credencial:
+Autenticação:
   description: |
     Geração e renovação de token JWT a partir das credenciais de parceiro
     e cliente. Todo token gerado aqui fica disponível automaticamente para

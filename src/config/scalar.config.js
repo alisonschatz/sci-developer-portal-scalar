@@ -6,16 +6,22 @@ import { apis, SHARED_TOKEN_VARIABLE } from '../../apis.manifest.js';
  * API consumidora ao token gerado pela API `auth` — e ela faz isso de
  * forma automática para qualquer API nova que apareça no manifesto:
  *
- *   - Se `api.securityScheme` estiver definido, o campo de token/valor
- *     daquele security scheme é pré-preenchido com `{{sci_auth_token}}` —
- *     a sintaxe de variável do Scalar. Como o login grava essa variável em
- *     `pm.globals` (workspace-wide, não por documento), ela já chega
- *     resolvida aqui sem nenhum código extra por API.
- *   - Se `api.securityScheme` for `null` (hoje, só a própria API `auth`),
- *     nenhuma authentication é pré-configurada — ela é quem GERA o token,
- *     não quem o consome.
+ *   - Caso simples (`api.securityScheme`, string): o token/valor daquele
+ *     scheme é pré-preenchido com `{{sci_auth_token}}`. Cobre a maioria
+ *     das APIs futuras, que devem ter só um scheme relevante.
+ *   - Caso rico (`api.securitySchemes`, array — hoje só a própria
+ *     `auth`): cada scheme pode ter seu próprio `prefill` (ou nenhum) e
+ *     ser marcado `preferred` independentemente — necessário quando uma
+ *     API tem mais de um scheme com comportamentos diferentes (ex.: a
+ *     Auth tem "Gerar JWT", Basic, sem prefill — são as credenciais que
+ *     GERAM o token — e "Atualizar JWT", Bearer, prefill com o próprio
+ *     token compartilhado, porque renovar exige apresentá-lo).
+ *   - `api.securityScheme: null` (sem `securitySchemes`): nenhuma
+ *     authentication é pré-configurada.
  *
- * Ver README, seção "Como o token é compartilhado entre as APIs".
+ * Como o login grava o token em `pm.globals` (workspace-wide, não por
+ * documento), o valor já chega resolvido aqui sem nenhum código extra
+ * por API. Ver README, seção "Como o token é compartilhado entre as APIs".
  */
 export function buildScalarSources(basePath = '/') {
   return apis.map((api) => {
@@ -39,16 +45,23 @@ export function buildScalarSources(basePath = '/') {
           },
         },
       };
+    } else if (api.securitySchemes) {
+      const preferred = api.securitySchemes.filter((s) => s.preferred).map((s) => s.name);
+      const securitySchemes = {};
+      for (const scheme of api.securitySchemes) {
+        if (scheme.prefill) securitySchemes[scheme.name] = scheme.prefill;
+      }
+
+      source.authentication = {
+        // string se só 1 preferido, array (relação "OU") se mais de 1 —
+        // confirmado em node_modules/@scalar/types (authentication-configuration.d.ts).
+        preferredSecurityScheme: preferred.length > 1 ? preferred : (preferred[0] ?? null),
+        ...(Object.keys(securitySchemes).length > 0 ? { securitySchemes } : {}),
+      };
     }
 
     return source;
   });
-}
-
-/** APIs que efetivamente consomem o token compartilhado (para a UI do
- *  banner listar "para onde ir depois do login" sem hardcode). */
-export function getTokenConsumerApis() {
-  return apis.filter((api) => !api.isAuthProvider && api.securityScheme);
 }
 
 /**
