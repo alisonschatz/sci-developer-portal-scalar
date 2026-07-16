@@ -31,7 +31,7 @@ test('buildScalarConfiguration() aplica a configuration global adotada', () => {
   assert.equal(config.orderSchemaPropertiesBy, 'alpha');
   assert.equal(config.orderRequiredPropertiesFirst, true);
 
-  assert.equal(config.hideClientButton, false);
+  assert.equal(config.hideClientButton, true);
   assert.equal(config.hideTestRequestButton, false);
   assert.equal(config.isEditable, false);
   assert.equal(config.expandAllResponses, false);
