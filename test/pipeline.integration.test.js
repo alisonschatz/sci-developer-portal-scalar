@@ -1,4 +1,4 @@
-import { test, before, after } from 'node:test';
+import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'fs';
 import path from 'path';
@@ -13,37 +13,87 @@ import { execFileSync } from 'child_process';
  * promete: servers injetados, overview aplicado, x-post-response no
  * login, e a descrição de tag corrigida.
  *
- * Mais lento que os outros testes (invoca um subprocesso), então fica
- * separado num arquivo próprio — dá pra rodar só ele com
- * `node --test test/pipeline.integration.test.js` quando estiver
- * mexendo nos decorators.
+ * TUDO que mexe em src/base/openapi-*.json e public/openapi/*.json fica
+ * NESTE arquivo, de propósito — nunca espalhado em mais de um arquivo de
+ * teste. `node --test` pode rodar arquivos de teste diferentes em
+ * paralelo (processos/workers concorrentes); dois arquivos escrevendo no
+ * mesmo caminho em disco ao mesmo tempo é uma corrida de condição
+ * esperando para acontecer, incluindo entre o backup e o restore um do
+ * outro. Um bug real já surgiu de uma versão anterior deste arquivo
+ * (ver o comentário grande no before() abaixo) — a correção incluiu
+ * consolidar tudo aqui, não só corrigir o backup/restore.
  */
 
 const ROOT = process.cwd();
 const AUTH_RAW = path.join(ROOT, 'src/base/openapi-auth.json');
 const RHNETSOCIAL_RAW = path.join(ROOT, 'src/base/openapi-rhnetsocial.json');
 const OUTPUT_DIR = path.join(ROOT, 'public/openapi');
+const AUTH_BUNDLE = path.join(OUTPUT_DIR, 'auth.json');
+const RHNETSOCIAL_BUNDLE = path.join(OUTPUT_DIR, 'rhnetsocial.json');
 
-before(() => {
+// Todo caminho que este arquivo sobrescreve, em algum dos testes.
+const MANAGED_FILES = [AUTH_RAW, RHNETSOCIAL_RAW, AUTH_BUNDLE, RHNETSOCIAL_BUNDLE];
+
+/** Lê o conteúdo atual de cada caminho gerenciado (o que não existir vira
+ *  "ausente" no Map) — usado para poder restaurar exatamente esse
+ *  estado depois, em vez de apagar cegamente. */
+function backupManagedFiles() {
+  const backups = new Map();
+  for (const file of MANAGED_FILES) {
+    if (fs.existsSync(file)) backups.set(file, fs.readFileSync(file));
+  }
+  return backups;
+}
+
+/** Restaura cada caminho gerenciado ao que estava no backup (ou remove,
+ *  se o backup não tinha esse arquivo — ou seja, ele não existia antes). */
+function restoreManagedFiles(backups) {
+  for (const file of MANAGED_FILES) {
+    if (backups.has(file)) {
+      fs.writeFileSync(file, backups.get(file));
+    } else {
+      fs.rmSync(file, { force: true });
+    }
+  }
+}
+
+/** Copia as fixtures para src/base/ e roda o pipeline real (lint+bundle),
+ *  gerando os bundles finais em public/openapi/. */
+function buildFromFixtures() {
   fs.mkdirSync(path.join(ROOT, 'src/base'), { recursive: true });
+  fs.mkdirSync(OUTPUT_DIR, { recursive: true });
   fs.copyFileSync(path.join(ROOT, 'test/fixtures/openapi-auth.fixture.json'), AUTH_RAW);
   fs.copyFileSync(path.join(ROOT, 'test/fixtures/openapi-rhnetsocial.fixture.json'), RHNETSOCIAL_RAW);
-
   execFileSync('node', [path.join(ROOT, 'scripts/build-openapi.js')], { stdio: 'pipe' });
+}
+
+let fileLevelBackup;
+
+before(() => {
+  /**
+   * BUG REAL ENCONTRADO EM PRODUÇÃO (GitHub Actions run #4): no workflow
+   * de deploy, `npm run build:openapi` rodava ANTES de `npm test` — ou
+   * seja, quando este teste começava, `public/openapi/auth.json` e
+   * `rhnetsocial.json` já eram os bundles REAIS, recém-gerados a partir
+   * dos specs de produção. A versão anterior deste teste sobrescrevia
+   * esses arquivos com as fixtures e, no `after()`, apagava TODO `.json`
+   * da pasta como "limpeza" — destruindo os bundles reais antes do
+   * `vite build` rodar. O deploy publicava um site sem `openapi/auth.json`
+   * (404 no console, Scalar mostrando "Document could not be loaded").
+   *
+   * Por isso: qualquer arquivo gerenciado que já exista é salvo em
+   * memória antes de ser sobrescrito, e restaurado no `after()` — nunca
+   * apagado indiscriminadamente. Isso deixa o teste seguro independente
+   * da ordem em que os scripts de npm rodam, no CI ou localmente. A
+   * suíte `describe('proteção contra apagar conteúdo real', ...)` no
+   * fim deste arquivo é a regressão dedicada a essa garantia.
+   */
+  fileLevelBackup = backupManagedFiles();
+  buildFromFixtures();
 });
 
 after(() => {
-  for (const f of [AUTH_RAW, RHNETSOCIAL_RAW, `${AUTH_RAW}.previous.json`, `${RHNETSOCIAL_RAW}.previous.json`]) {
-    fs.rmSync(f, { force: true });
-  }
-  // Remove só os JSONs gerados pelo teste, preservando o diretório (e o
-  // .gitkeep nele) para que `git status` continue limpo depois de rodar
-  // `npm test` localmente.
-  if (fs.existsSync(OUTPUT_DIR)) {
-    for (const file of fs.readdirSync(OUTPUT_DIR)) {
-      if (file.endsWith('.json')) fs.rmSync(path.join(OUTPUT_DIR, file), { force: true });
-    }
-  }
+  restoreManagedFiles(fileLevelBackup);
   fs.rmSync(path.join(ROOT, 'redocly.generated.yaml'), { force: true });
 });
 
@@ -91,4 +141,57 @@ test('tag sem entrada em tags.yaml preserva a descrição original do backend', 
   // do decorator, não o "placeholder vindo do backend" do fixture bruto.
   const funcionarioTag = rh.tags.find((t) => t.name === 'Funcionario');
   assert.doesNotMatch(funcionarioTag.description, /placeholder vindo do backend/);
+});
+
+describe('proteção contra apagar conteúdo real pré-existente (regressão do bug em produção)', () => {
+  test('conteúdo gerenciado sobrevive a uma segunda rodada completa do pipeline por cima', () => {
+    const FAKE_RAW = JSON.stringify({
+      openapi: '3.0.0',
+      info: { title: 'CONTEÚDO REAL — NÃO PODE SER PERDIDO', version: '1.0.0' },
+      paths: {},
+    });
+    const FAKE_BUNDLE = JSON.stringify({
+      openapi: '3.0.0',
+      info: { title: 'BUNDLE REAL — NÃO PODE SER PERDIDO', version: '1.0.0' },
+      paths: {},
+    });
+
+    // Neste ponto, o before() do arquivo já rodou os testes acima com o
+    // conteúdo das fixtures — não importa o que está lá agora, o ponto
+    // deste teste é: seja lá o que for, precisa sobreviver intacto a uma
+    // rodada do pipeline por cima. Guarda esse estado pra restaurar no
+    // fim (senão este teste "vaza" pros testes anteriores, se a ordem
+    // dentro do arquivo mudar no futuro).
+    const outerBackup = backupManagedFiles();
+
+    fs.writeFileSync(AUTH_RAW, FAKE_RAW);
+    fs.writeFileSync(RHNETSOCIAL_RAW, FAKE_RAW);
+    fs.writeFileSync(AUTH_BUNDLE, FAKE_BUNDLE);
+    fs.writeFileSync(RHNETSOCIAL_BUNDLE, FAKE_BUNDLE);
+
+    // O MESMO ciclo que before()/after() do arquivo fazem — chamado
+    // diretamente, no mesmo processo, sem spawnar outro `node --test`
+    // nem depender de um segundo arquivo mexendo nos mesmos caminhos.
+    const fakeContentBackup = backupManagedFiles(); // == o FAKE_* que acabamos de escrever
+    buildFromFixtures();
+    restoreManagedFiles(fakeContentBackup);
+
+    try {
+      for (const [file, expected] of [
+        [AUTH_RAW, FAKE_RAW],
+        [RHNETSOCIAL_RAW, FAKE_RAW],
+        [AUTH_BUNDLE, FAKE_BUNDLE],
+        [RHNETSOCIAL_BUNDLE, FAKE_BUNDLE],
+      ]) {
+        assert.ok(fs.existsSync(file), `${file} deveria continuar existindo`);
+        assert.equal(
+          fs.readFileSync(file, 'utf8'),
+          expected,
+          `${file} deveria ter sido restaurado ao conteúdo original, não ficar com a fixture nem ser apagado`
+        );
+      }
+    } finally {
+      restoreManagedFiles(outerBackup);
+    }
+  });
 });

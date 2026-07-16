@@ -282,6 +282,68 @@ isso explícito no código, em vez de deixar implícito no default, foi uma
 escolha consciente para que o time visse exatamente pra onde esses dados
 vão, num único lugar.
 
+## 9. Teste de integração apagando bundles reais em produção — bug real no CI
+
+Depois do deploy pela primeira vez via GitHub Actions, o site carregou
+(header, sidebar, busca — tudo certo), mas `openapi/auth.json` e
+`openapi/rhnetsocial.json` voltavam `404`, e o Scalar mostrava "Document
+could not be loaded" no lugar da documentação.
+
+O log do Actions mostrou exatamente onde: o passo "Baixar + lintar +
+empacotar as APIs" rodava com sucesso, gerando os bundles reais em
+`public/openapi/*.json` — mas o passo seguinte, "Rodar testes
+automatizados" (`npm test`), fazia `test/pipeline.integration.test.js`
+sobrescrever `src/base/openapi-*.json` com as fixtures e, no `after()`,
+apagar **todo** arquivo `.json` dentro de `public/openapi/` como
+"limpeza" — destruindo os bundles reais recém-gerados, antes do `vite
+build` rodar. O artefato final do Pages tinha só o `.gitkeep`.
+
+Isso é um problema clássico de isolamento de teste: o teste escrevia e
+limpava um diretório que também é usado pelo pipeline de produção
+(`public/openapi/`), presumindo que só ele mexeria ali. Em
+desenvolvimento local isso nunca aparecia, porque ninguém roda
+`npm run build:openapi` seguido de `npm test` na mesma sessão sem querer
+— mas no CI, com `build:openapi` e `npm test` no mesmo job, na mesma
+pasta, essa suposição quebrou.
+
+**Correção em três camadas:**
+
+1. **Causa raiz:** `test/pipeline.integration.test.js` agora faz backup
+   em memória de qualquer conteúdo que já exista nos caminhos que vai
+   sobrescrever (`src/base/openapi-*.json`,
+   `public/openapi/{auth,rhnetsocial}.json`) antes de rodar, e restaura
+   exatamente esse conteúdo no `after()` — nunca mais um "apaga tudo
+   .json da pasta". Isso deixa o teste seguro **independente da ordem**
+   em que os scripts rodam, no CI ou localmente.
+2. **Isolamento entre testes:** a primeira versão desta correção pôs a
+   regressão dedicada num arquivo separado
+   (`test/pipeline-integration-safety.test.js`), que rodava o teste
+   acima como subprocesso. Rodando a suíte completa, essa separação
+   reproduziu uma variante do MESMO bug: `node --test` roda arquivos de
+   teste diferentes em paralelo, e o arquivo separado sobrescrevia os
+   caminhos gerenciados com conteúdo fake sem fazer backup do que
+   houvesse ali — o mesmo erro que o teste existia para prevenir,
+   cometido nele mesmo. A correção final consolidou tudo num único
+   arquivo (`describe('proteção contra apagar conteúdo real
+   pré-existente', ...)`, no fim de `test/pipeline.integration.test.js`),
+   chamando as mesmas funções de backup/build/restore diretamente, no
+   mesmo processo — sem subprocess, sem um segundo arquivo mexendo nos
+   mesmos caminhos, sem risco de concorrência entre arquivos.
+3. **Defesa em profundidade:** o workflow (`.github/workflows/deploy-docs.yml`)
+   agora roda `npm test` **antes** de `npm run build:openapi` — os testes
+   usam fixtures, não precisam de rede, então rodar antes falha mais
+   rápido em problema de código E evita completamente o cenário que
+   causou o bug (mesmo que a correção da camada 1 já torne isso seguro
+   por si só).
+
+Junto: `engines.node` (package.json) e `node-version` (workflow) foram
+corrigidos de `20` para `22` — o log do mesmo Actions run mostrou
+`npm warn EBADENGINE` para praticamente todo pacote `@scalar/*`
+(`agent-chat`, `api-client`, `api-reference`, `components`, `sidebar`,
+`themes`, `workspace-store`, entre outros), todos já exigindo
+`node >= 22`. Não estava quebrando nada ainda (só warnings), mas era
+questão de tempo.
+
 ## O que foi testado de verdade neste ambiente
 
 Diferente da v1 (cujo README listava quase tudo como "não testei, sandbox

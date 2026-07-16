@@ -36,7 +36,7 @@ Nesta versão:
 | Adicionar API nova | Editar 4+ arquivos à mão | Editar **1 array** em `apis.manifest.js` |
 | Compartilhamento de token | Funcionava só para RH Net Social, hardcoded | Automático para **qualquer** API do manifesto |
 | Bug do header/sidebar | Presente (posicionamento manual) | Corrigido com o mecanismo oficial do Scalar |
-| Pipeline testado | "Não testei num navegador real" (README da v1) | 49 testes automatizados, incluindo o pipeline Redocly rodando de verdade — ver [Testes](#testes-automatizados) |
+| Pipeline testado | "Não testei num navegador real" (README da v1) | 50 testes automatizados, incluindo o pipeline Redocly rodando de verdade — ver [Testes](#testes-automatizados) |
 | Callouts no overview | `<!-- theme: warning -->` (sintaxe não confirmada) | `> [!WARNING]` — sintaxe GFM que o Scalar documenta oficialmente<sup>[2]</sup> |
 
 ---
@@ -141,7 +141,8 @@ trade-off em telas estreitas, em
 
 ## Pré-requisitos
 
-- Node.js **20+**
+- Node.js **22+** (várias dependências do `@scalar/*` exigem isso — rodar
+  com Node 20 funciona hoje, mas com avisos `EBADENGINE` do npm)
 - npm
 
 ## Rodando localmente
@@ -176,7 +177,7 @@ npm run dev               # check:openapi + vite (modo desenvolvimento)
 npm run build              # build:openapi + vite build → dist/
 npm run preview           # check:openapi + vite preview (serve dist/ localmente)
 
-npm test                  # 49 testes automatizados (unitários + integração Redocly real)
+npm test                  # 50 testes automatizados (unitários + integração Redocly real)
 ```
 
 ## Como adicionar uma API nova
@@ -207,7 +208,7 @@ leem o manifesto e se ajustam sozinhos.
 npm test
 ```
 
-49 testes (`node:test`, com `@happy-dom/global-registrator` como única
+50 testes (`node:test`, com `@happy-dom/global-registrator` como única
 dependência de teste extra — necessária só para o teste que monta um
 componente Vue de verdade), cobrindo:
 
@@ -247,7 +248,11 @@ componente Vue de verdade), cobrindo:
   bundle final tem: servers injetados, overview aplicado, `x-post-response`
   no login com a variável certa, e a tag `Feriado` com a descrição
   corrigida (era "criação, edição e exclusão" no backend; via API é
-  somente leitura).
+  somente leitura). Inclui também, no mesmo arquivo (de propósito — ver
+  `docs/arquitetura.md`, decisão 9), a regressão de um bug real
+  encontrado em CI: simula conteúdo "real" pré-existente nos caminhos
+  gerenciados e confirma que ele sobrevive intacto a uma rodada
+  completa do pipeline por cima, em vez de ser apagado no cleanup.
 
 Além disso, `npm run build` foi executado de ponta a ponta neste ambiente
 (fixtures → Redocly real → `vite build` real → servido via `vite preview`
@@ -340,7 +345,7 @@ sci-developer-portal/
 ├── public/
 │   ├── assets/sci-logo.png
 │   └── openapi/                        # Gerado pelo pipeline (git-ignored)
-├── test/                               # 49 testes — ver seção "Testes automatizados"
+├── test/                               # 50 testes — ver seção "Testes automatizados"
 └── docs/
     ├── arquitetura.md                  # Decisões técnicas + fontes oficiais do Scalar
     └── adicionando-uma-nova-api.md     # Passo a passo completo

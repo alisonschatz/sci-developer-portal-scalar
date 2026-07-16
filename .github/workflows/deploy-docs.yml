@@ -30,7 +30,7 @@ jobs:
       - name: Configurar Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       - name: Instalar dependências
@@ -38,6 +38,17 @@ jobs:
 
       - name: Validar manifesto de APIs
         run: npm run manifest:verify
+
+      # Roda ANTES do fetch real de propósito: os testes usam fixtures,
+      # não precisam de rede, então falham mais rápido aqui do que
+      # depois de gastar uma chamada real às APIs de produção. Também é
+      # uma segunda camada de proteção — test/pipeline.integration.test.js
+      # já é seguro para rodar em qualquer ordem (faz backup/restore em
+      # vez de apagar), mas rodar os testes antes do build real evita
+      # completamente o cenário que já causou um bug em produção (ver
+      # docs/arquitetura.md).
+      - name: Rodar testes automatizados
+        run: npm test
 
       # Todas as env vars abaixo precisam existir como GitHub Secrets — ver
       # README, seção "Publicação (CI/CD)". A lista é derivada de
@@ -50,9 +61,6 @@ jobs:
           RHNETSOCIAL_SOURCE_URL: ${{ secrets.RHNETSOCIAL_SOURCE_URL }}
           RHNETSOCIAL_AUTH_TOKEN: ${{ secrets.RHNETSOCIAL_AUTH_TOKEN }}
         run: npm run build:openapi
-
-      - name: Rodar testes automatizados
-        run: npm test
 
       - name: Build do portal (Vite)
         env:
