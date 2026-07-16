@@ -103,7 +103,7 @@ export function buildScalarConfiguration(basePath = '/') {
     orderRequiredPropertiesFirst: true,
 
     // ── Cliente de teste (Test Request) ─────────────────────────────
-    hideClientButton: false,
+    hideClientButton: true,
     hideTestRequestButton: false,
     isEditable: false,
     expandAllResponses: false,
