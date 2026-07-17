@@ -114,12 +114,12 @@ test('pipeline gera um bundle final para cada API do manifesto', () => {
   assert.ok(fs.existsSync(path.join(OUTPUT_DIR, 'rhnetsocial.json')));
 });
 
-test('add-servers injeta a URL de produção quando o spec de origem não declara servers', () => {
+test('add-servers injeta a URL de produção quando o spec de origem não declara servers (sem description — só a URL)', () => {
   const auth = readBundle('auth');
-  assert.deepEqual(auth.servers, [{ url: 'https://api-auth.sci.com.br', description: 'Produção' }]);
+  assert.deepEqual(auth.servers, [{ url: 'https://api-auth.sci.com.br' }]);
 
   const rh = readBundle('rhnetsocial');
-  assert.deepEqual(rh.servers, [{ url: 'https://api2.rhnetsocial.com.br', description: 'Produção' }]);
+  assert.deepEqual(rh.servers, [{ url: 'https://api2.rhnetsocial.com.br' }]);
 });
 
 test('set-overview substitui info.description pelo conteúdo do overview.md', () => {

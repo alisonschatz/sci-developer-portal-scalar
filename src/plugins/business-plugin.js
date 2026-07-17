@@ -158,7 +158,9 @@ function InjectTagDescriptions({ source }) {
  * Decorator: injeta `servers` no OpenAPI final quando o spec de origem não
  * declara nenhum. Sem isso, o Scalar não consegue montar a URL completa
  * nos exemplos de requisição / cliente de testes. Aceita { url,
- * description }. Não sobrescreve se o spec já tiver servers na origem.
+ * description } — `description` é opcional; se não vier, o objeto de
+ * server sai só com `url`, sem nenhum texto embaixo dela no Scalar. Não
+ * sobrescreve se o spec já tiver servers na origem.
  */
 /** @type {import('@redocly/cli').OasDecorator} */
 function AddServers({ url, description }) {
@@ -167,7 +169,7 @@ function AddServers({ url, description }) {
       leave(root) {
         if (!url) return;
         if (Array.isArray(root.servers) && root.servers.length > 0) return;
-        root.servers = [{ url, description: description || 'Produção' }];
+        root.servers = [description ? { url, description } : { url }];
       },
     },
   };

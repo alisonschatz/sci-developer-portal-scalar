@@ -40,7 +40,6 @@ function main() {
         `      remove-x-internal: on`,
         `      business/add-servers:`,
         `        url: ${api.serverUrl}`,
-        `        description: Produção`,
         `      business/set-overview:`,
         `        file: src/decorators/${api.id}/overview.md`,
         `      business/inject-tag-descriptions:`,
