@@ -14,6 +14,7 @@ import { apis, getAuthProvider } from '../../apis.manifest.js';
  *   node_modules/@scalar/workspace-store/dist/entities/auth/schema.js
  *     secrets[schemeName] = { type: 'http', 'x-scalar-secret-token',
  *                              'x-scalar-secret-username', 'x-scalar-secret-password' }
+ *     selected.document = { selectedIndex, selectedSchemes: SecurityRequirement[] }
  *
  * Por quê isso, e não só a ponte de customFetch (useTokenBridge.js): o
  * Scalar só RELÊ essa chave quando um documento é ativado/selecionado
@@ -23,12 +24,18 @@ import { apis, getAuthProvider } from '../../apis.manifest.js';
  * carregar a página de novo), o campo já apareça com o token de
  * verdade — em vez do placeholder `{{sci_auth_token}}` sem resolver.
  *
- * O que este módulo NUNCA faz: mexer em `selected` (qual scheme está
- * escolhido) — só em `secrets` (o valor). Mexer em `selected` exigiria
- * conhecer o formato exato de `selected.path` (chaveado por
- * caminho+método, usado pra seleção por operação) sem confirmação
- * segura do formato — arriscado o bastante pra não valer a pena; ver
- * docs/arquitetura.md, decisão 16.
+ * `ensureAllMultiSchemeSelections()` cobre um caso diferente,
+ * descoberto testando na prática: a simples EXISTÊNCIA de
+ * `selected.document` (mesmo com `selectedSchemes: []` vazio — ex.:
+ * alguém seleciona e desseleciona um scheme no dropdown do topo, sem
+ * querer) desliga o cálculo automático de "Required" por operação. A
+ * decisão consciente aqui (ver docs/arquitetura.md, decisão 17): manter
+ * `selected.document` sempre com os DOIS schemes da Auth presentes —
+ * o topo do documento nunca fica "No authentication selected", ao
+ * custo de cada operação não escolher mais sozinha o seu Required
+ * (usuário alterna manualmente entre as duas — já confirmado que
+ * funciona bem). Autocura: se a chave for apagada, ou ficar sem os dois
+ * schemes, a próxima carga da página regenera.
  */
 
 const AUTH_KEY_PREFIX = 'scalar-reference-auth';
@@ -119,6 +126,72 @@ export function syncTokenToStorage(storage, token) {
       writeTokenToScheme(storage, slug, schemeName, token);
     } catch {
       // Complemento, não crítico — nunca deixa isso quebrar o app.
+    }
+  }
+}
+
+/**
+ * Documentos do manifesto com mais de 1 security scheme — hoje só a
+ * Auth ("Gerar JWT" + "Atualizar JWT"). Genérico: uma API futura com
+ * `securitySchemes` de mais de um item também seria coberta sozinha.
+ */
+export function getMultiSchemeDocuments() {
+  return apis
+    .filter((api) => Array.isArray(api.securitySchemes) && api.securitySchemes.length > 1)
+    .map((api) => ({ slug: api.slug, schemeNames: api.securitySchemes.map((s) => s.name) }));
+}
+
+/** true se `selectedSchemes` já contém TODOS os nomes esperados, um
+ *  requirement por nome (o formato `[{"A":[]},{"B":[]}]`, não
+ *  `[{"A":[],"B":[]}]` combinado). */
+function hasAllSchemesSelected(selectedSchemes, schemeNames) {
+  if (!Array.isArray(selectedSchemes)) return false;
+  return schemeNames.every((name) => selectedSchemes.some((requirement) => requirement && name in requirement));
+}
+
+/**
+ * Garante que `selected.document` do slug indicado tenha TODOS os
+ * schemes de `schemeNames`, um requirement por nome (relação "OU": o
+ * usuário alterna manualmente entre eles). Não faz nada se já estiver
+ * correto (evita escrita desnecessária). Nunca mexe em `secrets`.
+ */
+export function ensureDocumentSelectedSchemes(storage, slug, schemeNames) {
+  const entry = readAuthEntry(storage, slug);
+  const existing = entry.selected.document;
+
+  if (existing && hasAllSchemesSelected(existing.selectedSchemes, schemeNames)) {
+    return; // já está certo — não reescreve à toa
+  }
+
+  const updated = {
+    ...entry,
+    selected: {
+      ...entry.selected,
+      document: {
+        selectedIndex: 0,
+        selectedSchemes: schemeNames.map((name) => ({ [name]: [] })),
+      },
+    },
+  };
+
+  storage.setItem(authStorageKey(slug), JSON.stringify(updated));
+}
+
+/**
+ * Roda `ensureDocumentSelectedSchemes` para todo documento
+ * multi-scheme do manifesto. Chamada uma vez, na inicialização do app
+ * (`src/main.js`) — cobre exatamente o "mesmo se excluídos se
+ * regenerassem ao atualizar [a página]" pedido: se a chave for apagada
+ * (ou nunca ter existido, ou ficar com só um scheme por qualquer
+ * motivo), a próxima carga da página já regenera com os dois.
+ */
+export function ensureAllMultiSchemeSelections(storage) {
+  if (!storage) return;
+  for (const { slug, schemeNames } of getMultiSchemeDocuments()) {
+    try {
+      ensureDocumentSelectedSchemes(storage, slug, schemeNames);
+    } catch {
+      // Nunca deixa isso impedir o app de montar.
     }
   }
 }

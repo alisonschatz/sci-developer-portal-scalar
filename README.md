@@ -36,7 +36,7 @@ Nesta versão:
 | Adicionar API nova | Editar 4+ arquivos à mão | Editar **1 array** em `apis.manifest.js` |
 | Compartilhamento de token | Funcionava só para RH Net Social, hardcoded | Automático para **qualquer** API do manifesto |
 | Bug do header/sidebar | Presente (posicionamento manual) | Corrigido com o mecanismo oficial do Scalar |
-| Pipeline testado | "Não testei num navegador real" (README da v1) | 70 testes automatizados, incluindo o pipeline Redocly rodando de verdade — ver [Testes](#testes-automatizados) |
+| Pipeline testado | "Não testei num navegador real" (README da v1) | 77 testes automatizados, incluindo o pipeline Redocly rodando de verdade — ver [Testes](#testes-automatizados) |
 | Callouts no overview | `<!-- theme: warning -->` (sintaxe não confirmada) | `> [!WARNING]` — sintaxe GFM que o Scalar documenta oficialmente<sup>[2]</sup> |
 
 ---
@@ -126,6 +126,18 @@ e depois trocar pra aba da RH Net Social já mostra o campo preenchido
 de verdade (não só o placeholder `{{sci_auth_token}}`), porque essa
 troca de aba é exatamente o momento em que o Scalar relê a chave. Ver
 `docs/arquitetura.md`, decisão 16.
+
+**Trade-off consciente: o topo do documento Auth sempre mostra "Gerar
+JWT" e "Atualizar JWT" disponíveis, em vez de cada operação escolher
+sozinha o Required dela.** As duas coisas competem pelo mesmo campo
+interno do Scalar (`selected.document`) — não é possível ter as duas ao
+mesmo tempo (testado na prática, não só em teoria; ver
+`docs/arquitetura.md`, decisão 17). Escolhido priorizar o topo nunca
+ficar em branco; a pessoa alterna manualmente entre os dois schemes ao
+entrar em cada operação. `ensureAllMultiSchemeSelections()`
+(`src/main.js`, antes do `mount()`) garante isso de forma autocurativa
+a cada carregamento de página — mesmo que a chave seja apagada, ou
+fique com só um scheme por um clique acidental no dropdown do topo.
 
 **Por que isso escala para dezenas de APIs sem código extra:** tanto o
 prefill do campo (`src/config/scalar.config.js`) quanto a lista de
@@ -219,7 +231,7 @@ npm run dev               # check:openapi + vite (modo desenvolvimento)
 npm run build              # build:openapi + vite build → dist/
 npm run preview           # check:openapi + vite preview (serve dist/ localmente)
 
-npm test                  # 70 testes automatizados (unitários + integração Redocly real)
+npm test                  # 77 testes automatizados (unitários + integração Redocly real)
 ```
 
 ## Como adicionar uma API nova
@@ -250,7 +262,7 @@ leem o manifesto e se ajustam sozinhos.
 npm test
 ```
 
-70 testes (`node:test`, com `@happy-dom/global-registrator` como única
+77 testes (`node:test`, com `@happy-dom/global-registrator` como única
 dependência de teste extra — necessária só para o teste que monta um
 componente Vue de verdade), cobrindo:
 
@@ -292,7 +304,13 @@ componente Vue de verdade), cobrindo:
   preservando usuário/senha e outros schemes já salvos, descoberta dos
   alvos a partir do manifesto (nunca hardcoded), e o fluxo completo —
   login gera o token, as duas chaves relevantes (Auth e RH Net Social)
-  aparecem gravadas corretamente.
+  aparecem gravadas corretamente. Também cobre
+  `ensureAllMultiSchemeSelections()` (decisão 17): regenera
+  `selected.document` com os dois schemes da Auth quando a chave está
+  ausente, vazia, ou com só um scheme — incluindo o caso real relatado
+  (clique acidental no dropdown do topo deixando `selectedSchemes: []`)
+  — e confirma que nunca reescreve à toa quando já está correto, nem
+  toca em `secrets`.
 - **`src/composables/useSidebarStickyOffset.js`** — com DOM real
   (`@happy-dom/global-registrator`), monta uma estrutura de sidebar
   fake (marca + seletor + busca + `.custom-scroll` + rodapé) e confirma
@@ -411,7 +429,7 @@ sci-developer-portal/
 ├── public/
 │   ├── assets/sci-logo.png
 │   └── openapi/                        # Gerado pelo pipeline (git-ignored)
-├── test/                               # 70 testes — ver seção "Testes automatizados"
+├── test/                               # 77 testes — ver seção "Testes automatizados"
 └── docs/
     ├── arquitetura.md                  # Decisões técnicas + fontes oficiais do Scalar
     └── adicionando-uma-nova-api.md     # Passo a passo completo

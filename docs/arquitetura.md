@@ -685,6 +685,55 @@ completar o que falta, se for retomado com acesso a um navegador real
 pra confirmar o formato por engenharia reversa direta (inspecionar o
 valor salvo depois de uma seleção manual por operação).
 
+## 17. `selected.document` sempre com os dois schemes da Auth — decisão consciente de trade-off
+
+Depois da decisão 16, veio uma pergunta direta: dá pra deixar o topo do
+documento Auth (a visão sem nenhuma operação aberta — "Authentication",
+`Auth Type`) já mostrando algo, em vez de "No authentication
+selected"? E, se sim, dá pra ter isso **e** cada operação continuar
+escolhendo sozinha o Required dela (decisão 15)?
+
+Testado na prática, não só em teoria: escrever
+`selected.document.selectedSchemes` com os dois schemes juntos (o
+mesmo formato de duas entradas, `[{"Gerar JWT":[]},{"Atualizar
+JWT":[]}]`) faz os dois aparecerem disponíveis pra alternar — mas
+nenhuma operação volta a calcular sozinha qual é o Required dela (o
+"vazamento" da decisão 13, de novo). Mais: um teste do usuário revelou
+que a causa não é o *conteúdo* de `selected.document` — é a
+**existência** do campo. Mesmo `selectedSchemes: []` (vazio — o estado
+que sobra depois de selecionar e desselecionar um scheme no dropdown do
+topo, um clique comum de quem está só explorando a tela) já é
+suficiente pra desligar o cálculo automático por operação,
+permanentemente, até a chave ser apagada.
+
+Conclusão, sem meio-termo encontrado: **as duas coisas competem pelo
+mesmo campo**. Documento mostrando algo pré-selecionado no topo exige
+`selected.document` preenchido; cada operação escolhendo sozinha exige
+`selected.document` ausente. Não existe uma forma de ter as duas ao
+mesmo tempo com o que este projeto confirmou sobre o mecanismo interno
+do Scalar.
+
+**Decisão do usuário, feita cientes do trade-off:** priorizar o topo do
+documento sempre mostrando os dois schemes disponíveis, aceitando que
+cada operação (login, refresh) não escolhe mais sozinha — a pessoa
+alterna manualmente entre "Gerar JWT" e "Atualizar JWT" ao entrar em
+cada uma (já confirmado que o dropdown pra isso funciona bem).
+
+`ensureAllMultiSchemeSelections()`, chamada em `src/main.js` antes do
+`mount()`, garante isso de forma autocurativa: roda toda vez que a
+página carrega, verifica se `selected.document` do documento `auth` tem
+os dois schemes presentes (no formato de duas entradas — nunca um
+requirement combinado, que seria AND, não OU) e, se não tiver — chave
+apagada, vazia, ou com só um scheme por qualquer motivo — regenera do
+zero. Só toca em `selected.document`; nunca em `secrets` (credenciais
+já digitadas sobrevivem sempre) nem grava à toa quando já está correto
+(evita reescrever a cada carregamento de página sem necessidade).
+
+Genérico por construção: `getMultiSchemeDocuments()` deriva do
+manifesto quais documentos têm mais de um security scheme — hoje só a
+`auth`. Uma API futura com essa mesma necessidade seria coberta
+automaticamente, sem código novo.
+
 ## O que foi testado de verdade neste ambiente
 
 1. **`npm install`** — as 317 dependências reais (Vite, Vue 3, `@scalar/api-reference`
@@ -708,7 +757,7 @@ valor salvo depois de uma seleção manual por operação).
    `index.html`, `assets/sci-logo.png` (sem hash, servido no caminho
    absoluto esperado) e `openapi/auth.json` respondem `200`, e que o
    conteúdo do bundle final é o esperado (`x-post-response` presente).
-5. **70 testes automatizados** (`npm test`, `node:test`) cobrindo a
+5. **77 testes automatizados** (`npm test`, `node:test`) cobrindo a
    lógica pura de todo script do pipeline, o composable de ponte de
    token (incluindo o fluxo completo login → captura → correção do
    header, com fetch fake), e um teste que monta um componente Vue de

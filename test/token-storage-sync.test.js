@@ -6,6 +6,9 @@ import {
   writeTokenToScheme,
   getTokenStorageTargets,
   syncTokenToStorage,
+  getMultiSchemeDocuments,
+  ensureDocumentSelectedSchemes,
+  ensureAllMultiSchemeSelections,
 } from '../src/composables/useTokenStorageSync.js';
 
 /** Storage fake mínimo (Map por baixo) — Node não tem localStorage
@@ -103,4 +106,91 @@ test('syncTokenToStorage grava o token em todos os alvos descobertos, num storag
 test('syncTokenToStorage não lança com storage ou token ausente', () => {
   assert.doesNotThrow(() => syncTokenToStorage(undefined, 'token'));
   assert.doesNotThrow(() => syncTokenToStorage(createFakeStorage(), null));
+});
+
+test('getMultiSchemeDocuments() encontra a auth (2 schemes) e não inclui a RH Net Social (1 scheme)', () => {
+  const docs = getMultiSchemeDocuments();
+  const authDoc = docs.find((d) => d.slug === 'auth');
+  assert.ok(authDoc);
+  assert.deepEqual(authDoc.schemeNames.sort(), ['Atualizar JWT', 'Gerar JWT'].sort());
+  assert.equal(docs.some((d) => d.slug === 'rhnetsocial'), false);
+});
+
+test('ensureDocumentSelectedSchemes cria selected.document do zero quando a chave não existe', () => {
+  const storage = createFakeStorage();
+
+  ensureDocumentSelectedSchemes(storage, 'auth', ['Gerar JWT', 'Atualizar JWT']);
+
+  const saved = JSON.parse(storage.getItem('scalar-reference-auth-auth'));
+  assert.deepEqual(saved.selected.document, {
+    selectedIndex: 0,
+    selectedSchemes: [{ 'Gerar JWT': [] }, { 'Atualizar JWT': [] }],
+  });
+});
+
+test('ensureDocumentSelectedSchemes regenera quando selected.document existe mas está vazio (o caso real relatado: clique acidental no dropdown)', () => {
+  const storage = createFakeStorage({
+    'scalar-reference-auth-auth': JSON.stringify({
+      secrets: {},
+      selected: { document: { selectedIndex: 0, selectedSchemes: [] } },
+    }),
+  });
+
+  ensureDocumentSelectedSchemes(storage, 'auth', ['Gerar JWT', 'Atualizar JWT']);
+
+  const saved = JSON.parse(storage.getItem('scalar-reference-auth-auth'));
+  assert.equal(saved.selected.document.selectedSchemes.length, 2);
+});
+
+test('ensureDocumentSelectedSchemes regenera quando só 1 dos 2 schemes está presente', () => {
+  const storage = createFakeStorage({
+    'scalar-reference-auth-auth': JSON.stringify({
+      secrets: {},
+      selected: { document: { selectedIndex: 0, selectedSchemes: [{ 'Gerar JWT': [] }] } },
+    }),
+  });
+
+  ensureDocumentSelectedSchemes(storage, 'auth', ['Gerar JWT', 'Atualizar JWT']);
+
+  const saved = JSON.parse(storage.getItem('scalar-reference-auth-auth'));
+  assert.equal(saved.selected.document.selectedSchemes.length, 2);
+});
+
+test('ensureDocumentSelectedSchemes NÃO reescreve quando já está correto (evita escrita desnecessária)', () => {
+  const original = JSON.stringify({
+    secrets: { 'Gerar JWT': { type: 'http', 'x-scalar-secret-token': '', 'x-scalar-secret-username': 'x', 'x-scalar-secret-password': 'y' } },
+    selected: { document: { selectedIndex: 0, selectedSchemes: [{ 'Gerar JWT': [] }, { 'Atualizar JWT': [] }] } },
+  });
+  const storage = createFakeStorage({ 'scalar-reference-auth-auth': original });
+
+  ensureDocumentSelectedSchemes(storage, 'auth', ['Gerar JWT', 'Atualizar JWT']);
+
+  assert.equal(storage.getItem('scalar-reference-auth-auth'), original, 'não deveria ter regravado a chave');
+});
+
+test('ensureDocumentSelectedSchemes nunca mexe em secrets (credenciais já digitadas sobrevivem)', () => {
+  const storage = createFakeStorage({
+    'scalar-reference-auth-auth': JSON.stringify({
+      secrets: {
+        'Gerar JWT': { type: 'http', 'x-scalar-secret-token': '', 'x-scalar-secret-username': 'parceiro', 'x-scalar-secret-password': 'cliente' },
+      },
+      selected: { document: { selectedIndex: 0, selectedSchemes: [] } },
+    }),
+  });
+
+  ensureDocumentSelectedSchemes(storage, 'auth', ['Gerar JWT', 'Atualizar JWT']);
+
+  const saved = JSON.parse(storage.getItem('scalar-reference-auth-auth'));
+  assert.equal(saved.secrets['Gerar JWT']['x-scalar-secret-username'], 'parceiro');
+  assert.equal(saved.secrets['Gerar JWT']['x-scalar-secret-password'], 'cliente');
+});
+
+test('ensureAllMultiSchemeSelections aplica em todos os documentos multi-scheme do manifesto, sem lançar sem storage', () => {
+  assert.doesNotThrow(() => ensureAllMultiSchemeSelections(undefined));
+
+  const storage = createFakeStorage();
+  ensureAllMultiSchemeSelections(storage);
+
+  const saved = JSON.parse(storage.getItem('scalar-reference-auth-auth'));
+  assert.equal(saved.selected.document.selectedSchemes.length, 2);
 });
