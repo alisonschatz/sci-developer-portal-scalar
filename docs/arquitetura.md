@@ -437,6 +437,24 @@ o mesmo padrão de backup/restore já usado em outros lugares do arquivo),
 em vez de depender do conteúdo real do projeto — que agora muda por
 fora, no trabalho de escrita, sem relação com o código.
 
+**Continuação (depois das decisões 13–19):** com o comportamento de
+autenticação todo funcionando e estável, `src/decorators/auth/overview.md`
+recebeu uma reescrita completa como conteúdo de UX writing — diferente
+de `tags.yaml`/`descriptions.yaml`/`examples.json` (ainda genéricos,
+aguardando a "engenharia de escrita" mencionada acima), o overview é o
+primeiro contato de qualquer parceiro com o portal, então valeu escrever
+por completo desde já: as duas credenciais (parceiro/cliente) e onde
+conseguir cada uma, o passo a passo de gerar o token dentro do próprio
+portal, a diferença entre "Gerar JWT" e "Atualizar JWT" explicada em
+linguagem de usuário (não a mecânica interna — isso fica nas decisões
+13–19 deste documento), os perfis de permissão, e uma seção de
+perguntas comuns antecipando as dúvidas mais prováveis. Usa os alertas
+GFM confirmados na decisão 5 (`[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`,
+`[!NOTE]`) com propósito — não em todo parágrafo — e evita expor
+qualquer detalhe de implementação (a pessoa lendo não precisa saber que
+existe uma "ponte" de token nem um "guard" de storage; só precisa saber
+que funciona).
+
 ## 13. `preferredSecurityScheme`: só um por vez para schemes de operações diferentes
 
 A configuration inicial marcava **os dois** schemes da Auth
