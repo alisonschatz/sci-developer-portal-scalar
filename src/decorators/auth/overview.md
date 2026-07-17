@@ -1,21 +1,21 @@
 ## Sobre esta API
 
-A **API Auth** é o serviço de autenticação central da SCI. Ela gera e renova o token JWT usado por **todas as outras APIs deste portal** — hoje, a RH Net Social.
+A **API Auth** é o serviço de autenticação central da SCI. Ela gera e renova o token JWT usado por **todas as outras APIs deste portal**.
 
 > [!TIP]
-> **Você só precisa autenticar uma vez.** Depois de gerar o token aqui, ele já fica disponível automaticamente nas outras abas deste portal — não precisa copiar e colar em nenhum lugar. O "Como o token é compartilhado" está mais abaixo, se quiser entender o porquê.
+> Você só precisa autenticar uma vez — depois de gerar o token aqui, ele já fica disponível automaticamente nas outras abas deste portal, sem copiar e colar nada.
 
 Se é sua primeira vez aqui, siga nessa ordem:
 
-1. **Consiga suas duas credenciais** — seção logo abaixo.
-2. **Gere o token** — seção "Como gerar o token JWT aqui no portal".
-3. **Explore as outras APIs** — o token já vai estar disponível lá.
+1. [Consiga suas duas credenciais](#auth/description/1-antes-de-começar-duas-credenciais) — seção logo abaixo.
+2. [Gere o token](#2-como-gerar-o-token-jwt-aqui-no-portal) — passo a passo aqui no portal.
+3. [Explore a RH Net Social](#rhnetsocial) — o token já vai estar disponível lá.
 
 ---
 
-## 🔑 Antes de começar: duas credenciais
+## 1. Antes de começar: duas credenciais
 
-Gerar o token exige **duas credenciais diferentes**, que juntas funcionam como um usuário e uma senha:
+Para gerar o token, você precisa de **duas credenciais diferentes**, que juntas funcionam como um usuário e uma senha:
 
 | Credencial | O que identifica | Onde conseguir |
 | :--- | :--- | :--- |
@@ -39,11 +39,11 @@ Gerado dentro do **SCI WEB** (o sistema do próprio cliente), por um usuário j�
 4. Dê um nome ao token (opcional — só para identificá-lo depois, se você tiver mais de um) e clique em **"Continuar"**.
 
 > [!WARNING]
-> **O token de cliente aparece uma única vez.** Depois de fechar essa tela, não tem como visualizá-lo de novo — só gerar um novo. Copie e guarde num local seguro assim que ele aparecer.
+> O token de cliente aparece **uma única vez** — copie e guarde num local seguro antes de fechar a tela. Depois, só gerando um novo.
 
 ---
 
-## 🚀 Como gerar o token JWT aqui no portal
+## 2. Como gerar o token JWT aqui no portal
 
 Com as duas credenciais em mãos:
 
@@ -57,11 +57,12 @@ Com as duas credenciais em mãos:
 Se as credenciais estiverem corretas, a resposta vem com `201` e um campo `token` — esse é o seu JWT.
 
 > [!TIP]
-> Não precisa copiar esse token para nenhum lugar. Assim que a chamada é feita, ele já fica disponível automaticamente nas outras APIs deste portal — inclusive na RH Net Social.
+> Não precisa copiar esse token para nenhum lugar — assim que a chamada é feita, ele já fica disponível automaticamente nas outras APIs deste portal.
 
 ---
 
-## 🔄 "Gerar JWT" x "Atualizar JWT" — para que serve cada um
+## 3. "Gerar JWT" x "Atualizar JWT"
+### Para que serve cada um
 
 No painel de Authentication, você vai ver duas opções disponíveis: **"Gerar JWT"** e **"Atualizar JWT"**. São coisas diferentes, para momentos diferentes:
 
@@ -74,31 +75,31 @@ No painel de Authentication, você vai ver duas opções disponíveis: **"Gerar 
 **Se você só está explorando a documentação, "Gerar JWT" resolve tudo** — suas credenciais ficam salvas no navegador, então gerar de novo é só clicar em **Send** outra vez, sempre que precisar. "Atualizar JWT" existe principalmente para quem está **implementando a integração de verdade**: evita reenviar usuário e senha a cada chamada, usando só o token atual para conseguir um novo.
 
 > [!NOTE]
-> O token tem um tempo de validade — veja o campo `validade` (em segundos) na resposta do login ou do refresh. Depois de expirado, "Atualizar JWT" também para de funcionar; nesse caso, gere um token novo com "Gerar JWT".
+> O token tem um tempo de validade — veja o campo `validade` (em segundos) na resposta. Depois de expirado, gere um token novo com "Gerar JWT".
 
 ---
 
-## 👥 Perfis de permissão
+## 4. Perfis de permissão
 
 O que o token pode fazer nas demais APIs depende de **quem gerou o token de cliente**:
 
 - **Cliente/Empresa** — gerado por um usuário responsável da própria empresa.
 - **Administrador/Contabilidade** — gerado por um administrador do sistema, ou pelo escritório de contabilidade.
 
-O detalhe de **o que cada perfil pode fazer, recurso por recurso**, está na aba de cada API específica — por exemplo, na aba **RH Net Social**.
+O detalhe de **o que cada perfil pode fazer, recurso por recurso**, está na aba de cada API específica — veja [RH Net Social](#rhnetsocial).
 
 ---
 
-## ❓ Perguntas comuns
+## 5. Perguntas comuns
 
 **Preciso gerar o token de novo em cada API que eu for usar?**
 Não. Gere uma vez aqui, na Auth — o token já fica disponível automaticamente nas outras APIs deste portal.
 
 **"Gerar JWT" ou "Atualizar JWT" — qual eu uso?**
-"Gerar JWT" na primeira vez, ou depois que o token expirar. "Atualizar JWT" enquanto o token atual ainda for válido — mais relevante para quem está integrando o próprio código do que para explorar a documentação (veja a tabela acima).
+"Gerar JWT" na primeira vez, ou depois que o token expirar. "Atualizar JWT" enquanto o token atual ainda for válido — mais relevante para quem está integrando o próprio código do que para explorar a documentação (veja a [tabela acima](#3-gerar-jwt-x-atualizar-jwt-para-que-serve-cada-um)).
 
 **Perdi o token de cliente antes de copiar. E agora?**
-Não tem como recuperar — ele só aparece uma vez, no momento em que é gerado. Gere um novo pelo SCI WEB, com o mesmo passo a passo desta página.
+Não tem como recuperar — ele só aparece uma vez, no momento em que é gerado. Gere um novo pelo SCI WEB, com o [mesmo passo a passo](#como-obter-o-token-de-cliente) desta página.
 
 **Esqueci de copiar o token JWT gerado aqui no portal.**
 Sem problema — diferente do token de cliente, esse pode ser gerado de novo a qualquer momento. Suas credenciais de parceiro/cliente continuam salvas; é só clicar em **Send** de novo em "Gerar JWT".

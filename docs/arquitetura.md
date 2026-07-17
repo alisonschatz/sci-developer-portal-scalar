@@ -863,6 +863,30 @@ nova = WeakSet novo), e `installTokenStorageGuard()` limpa a chave
 solta de versões anteriores (`removeItem('__tokenBridgeGuardInstalled')`)
 na primeira vez que roda, pra quem já tinha essa versão com bug.
 
+## 20. Links âncora dentro do overview — o algoritmo de slug real, e por que emoji de número quebra
+
+A pedido de deixar o overview "mais intuitivo" — com links clicáveis em vez de só texto referenciando "a seção abaixo" — foi preciso confirmar, antes de escrever qualquer link, como o Scalar gera o `id` de cada heading do markdown (sem isso, um link `[texto](#algo)` só funciona por sorte).
+
+Achado no código-fonte, não em documentação: quem renderiza `info.description` (nosso `overview.md`) é `InfoDescription.vue` (`node_modules/@scalar/api-reference/dist/blocks/scalar-info-block/`), que usa um slugger de verdade — `node_modules/@scalar/helpers/dist/string/slugify.js`, não o slugify básico (`toLowerCase + replace espaço`) que vi antes em `ScalarMarkdown.vue.script.js` para outros contextos (como descrição de operação). O algoritmo real:
+
+```js
+const RE_NON_WORD = /[^\p{L}\p{M}\p{N}\s_-]/gu;
+// minúsculo, remove tudo que não for letra/marca/número/espaço/hífen,
+// espaços e underscores viram hífen, hífens nas pontas são cortados
+```
+
+Duas consequências práticas, verificadas rodando o algoritmo de verdade
+(não só lendo):
+
+1. **Emoji "normais" (🔑🚀👥❓) são removidos de forma limpa** — são categoria Unicode "Symbol", fora do que o regex preserva. Um heading `## 1. 🔑 Duas credenciais...` vira o slug `1-duas-credenciais-...`, sem nenhum resquício do emoji.
+2. **Emoji de número em círculo (1️⃣2️⃣3️⃣) NÃO são removidos** — são sequências que incluem caracteres Unicode de categoria "Mark" (variation selector + combining enclosing keycap), que o regex trata como parte de "palavra" e preserva. Um heading com `1️⃣` no texto gera um slug com o emoji literal dentro (`1️⃣-teste-...`) — praticamente impossível de acertar escrevendo um link à mão, e frágil mesmo copiando/colando (não é óbvio visualmente que são 3 caracteres Unicode diferentes, não 1).
+
+Por isso o overview usa **dígito comum + ponto + emoji simples** (`## 1. 🔑 Texto`) para os headings numerados, nunca emoji de teclado numérico. Cada link do arquivo foi conferido rodando o algoritmo real (não estimado) contra o texto exato de cada heading — inclusive um H3 sem prefixo numérico (`### 👤 Token de cliente` → `#token-de-cliente`, sem o "2-" que o H2 pai tem) e um heading que teve o texto encurtado no meio da escrita, o que muda o slug (`Gerar JWT × Atualizar JWT — qual usar` → `Gerar JWT × Atualizar JWT`, slug final sem o sufixo).
+
+**O link cruzado pra RH Net Social** (`[RH Net Social](#rhnetsocial)`) usa o mesmo hash-based routing já confirmado nas decisões anteriores (o slug da API no manifesto) — clicar deveria trocar de documento, não só rolar a página. Isso não foi possível confirmar visualmente (sem navegador); é a mesma mecânica de `window.location.hash = slug` já usada e documentada, aplicada agora via link de markdown em vez de JS.
+
+**Nota:** o texto passou por uma segunda rodada (tom mais completo de volta, depois de uma primeira tentativa mais enxuta demais) — os títulos mudaram de novo, então os slugs também. Cada link foi reconferido rodando o algoritmo de novo contra o texto final, não reaproveitado da rodada anterior — é fácil um heading mudar de texto e um link ficar apontando pro slug antigo, silenciosamente quebrado.
+
 ## O que foi testado de verdade neste ambiente
 
 1. **`npm install`** — as 317 dependências reais (Vite, Vue 3, `@scalar/api-reference`
