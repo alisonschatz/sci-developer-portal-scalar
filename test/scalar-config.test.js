@@ -78,22 +78,23 @@ test('sources[] continua com title/slug/default corretos por API', () => {
   assert.equal(rh.authentication.preferredSecurityScheme, 'bearerAuth');
 });
 
-test('auth (securitySchemes plural): os dois schemes reais vêm preferidos, só "Atualizar JWT" recebe o token compartilhado', () => {
+test('auth (securitySchemes plural): nenhum scheme é preferido no nível do documento — cada operação usa o próprio requirement; "Atualizar JWT" recebe o token compartilhado mesmo assim', () => {
   const config = buildScalarConfiguration();
   const auth = config.sources.find((s) => s.slug === 'auth');
 
-  // "Gerar JWT" (Basic — credenciais de parceiro/cliente) e "Atualizar
-  // JWT" (Bearer — usado no refresh) precisam vir os dois disponíveis
-  // sem precisar selecionar na mão — preferredSecurityScheme como array
-  // é uma relação "OU", confirmada no schema real do Scalar.
-  assert.deepEqual(auth.authentication.preferredSecurityScheme, ['Gerar JWT', 'Atualizar JWT']);
+  // Nenhum `preferred: true` no manifesto de propósito — ver
+  // docs/arquitetura.md, decisão 15: seleção no nível do documento tem
+  // prioridade sobre o que cada operação declara sozinha no OpenAPI, e
+  // isso "vazava" o scheme errado pra operações que não deveriam usá-lo
+  // (o refresh acabava tentando usar "Gerar JWT", Basic, em vez de
+  // "Atualizar JWT", Bearer).
+  assert.equal(auth.authentication.preferredSecurityScheme, null);
 
   // "Gerar JWT" é quem GERA o token — não existe variável compartilhada
-  // pra pré-preencher as credenciais de parceiro/cliente, então não deve
-  // ter entrada em securitySchemes.
+  // pra pré-preencher as credenciais de parceiro/cliente.
   assert.equal('Gerar JWT' in auth.authentication.securitySchemes, false);
 
-  // "Atualizar JWT" precisa apresentar o token atual para renovar —
-  // pré-preenchido com a mesma variável compartilhada.
+  // "Atualizar JWT" recebe o prefill independente de estar preferido —
+  // aplica quando a operação de refresh ativa esse scheme sozinha.
   assert.equal(auth.authentication.securitySchemes['Atualizar JWT'].token, '{{sci_auth_token}}');
 });

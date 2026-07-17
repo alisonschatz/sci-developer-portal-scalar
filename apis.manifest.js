@@ -67,12 +67,13 @@
  *                                     o token atual). `name` precisa bater EXATAMENTE
  *                                     com a chave em components.securitySchemes do
  *                                     spec de origem. `preferred: true` inclui esse
- *                                     scheme em `preferredSecurityScheme` (aceita
- *                                     vários — foram confirmados na Scalar como uma
- *                                     relação "OU": os schemes marcados aparecem
- *                                     disponíveis para alternar, sem precisar
- *                                     selecionar na mão). `prefill` é passado direto
- *                                     para `authentication.securitySchemes[name]` do
+ *                                     scheme em `preferredSecurityScheme` — só marque
+ *                                     `preferred` em schemes de operações que são de
+ *                                     fato alternativas entre si; schemes de operações
+ *                                     diferentes (como aqui) não deveriam estar juntos
+ *                                     nessa lista (ver docs/arquitetura.md, decisão 13).
+ *                                     `prefill` é passado direto para
+ *                                     `authentication.securitySchemes[name]` do
  *                                     Scalar — o formato depende do tipo do scheme
  *                                     (`{ token }` para Bearer, `{ username,
  *                                     password }` para Basic, `{ value }` para API
@@ -80,6 +81,17 @@
  *                                     `securitySchemes`, nunca os dois na mesma API.
  * @property {boolean} [default]      Se true, esta API abre por padrão no portal.
  *                                     Deve haver exatamente uma com `default: true`.
+ * @property {string} [tokenResponseField]
+ *                                     Só na API isAuthProvider: nome do campo, no
+ *                                     JSON de resposta das operações desta API, que
+ *                                     contém o JWT. Usado por
+ *                                     src/composables/useTokenBridge.js para capturar
+ *                                     o token e corrigir o header Authorization das
+ *                                     APIs consumidoras diretamente na requisição de
+ *                                     saída — contorna uma limitação conhecida do
+ *                                     Scalar (a variável compartilhada não persiste
+ *                                     entre requisições nessa versão; ver
+ *                                     docs/arquitetura.md, decisão 14).
  */
 
 /** Nome da variável global do Scalar que carrega o JWT entre documentos.
@@ -99,20 +111,35 @@ export const apis = [
     serverUrl: 'https://api-auth.sci.com.br',
     securityScheme: null,
     // Nomes conferidos direto no spec real da API Auth (auth.json).
+    // "Gerar JWT" e "Atualizar JWT" são schemes de operações DIFERENTES
+    // e mutuamente exclusivas — login usa um, refresh usa o outro.
+    //
+    // Nenhum scheme aqui tem `preferred: true` de propósito — ver
+    // docs/arquitetura.md, decisão 15. Uma versão anterior marcava
+    // "Gerar JWT" como preferido do documento, mas confirmado no
+    // código-fonte (get-selected-security.js): a seleção no nível do
+    // DOCUMENTO tem prioridade sobre o que cada OPERAÇÃO declara sozinha
+    // no OpenAPI — ou seja, "Gerar JWT" preferido "vazava" pra toda
+    // operação do documento, inclusive o refresh (que deveria usar
+    // "Atualizar JWT" por conta própria). Sem nenhum scheme preferido
+    // aqui, cada operação cai pro PRÓPRIO security requirement dela
+    // (prioridade 4 no Scalar) — login mostra "Gerar JWT" sozinho,
+    // refresh mostra "Atualizar JWT" sozinho, automaticamente, cada um
+    // por conta própria — e os dois continuam disponíveis pra trocar
+    // manualmente de qualquer jeito.
     securitySchemes: [
       {
         name: 'Gerar JWT', // HTTP Basic — username/password = token de parceiro/cliente
-        preferred: true, // já vem selecionado no painel de auth, sem precisar escolher
         // Sem `prefill`: username/password são as credenciais que GERAM o
         // token — não existe variável compartilhada para preencher aqui.
       },
       {
-        name: 'Atualizar JWT', // HTTP Bearer — usado pelo endpoint de refresh
-        preferred: true,
+        name: 'Atualizar JWT', // HTTP Bearer — usado só pelo endpoint de refresh
         prefill: { token: `{{${SHARED_TOKEN_VARIABLE}}}` }, // mesmo token que "Gerar JWT" acabou de gerar
       },
     ],
     default: true,
+    tokenResponseField: 'token',
   },
   {
     id: 'rhnetsocial',
@@ -185,6 +212,9 @@ export function validateManifest(list = apis) {
 
     if (api.isAuthProvider) {
       authProviderCount += 1;
+      if (!api.tokenResponseField) {
+        errors.push(`API "${api.id}" é isAuthProvider mas não define tokenResponseField.`);
+      }
     }
     if (api.default) defaultCount += 1;
 

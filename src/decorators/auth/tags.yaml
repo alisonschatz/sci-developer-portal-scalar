@@ -1,8 +1,11 @@
 # Chaveado pelo nome EXATO da tag (tags[].name) no spec de origem desta API.
-# Nome confirmado no spec real de produção (auth.json): "Autenticação".
-
-Autenticação:
-  description: |
-    Geração e renovação de token JWT a partir das credenciais de parceiro
-    e cliente. Todo token gerado aqui fica disponível automaticamente para
-    as demais APIs deste portal — não é preciso copiar e colar manualmente.
+# Tag sem entrada aqui mantém a descrição original vinda do backend.
+#
+# Limpo de propósito (2026-07) — sem texto personalizado ainda pronto.
+# Descrições de tag são conteúdo de "engenharia de escrita voltada ao
+# cliente" (detalhe de permissão por recurso) — entram aqui quando
+# prontas. Nome real confirmado no spec de produção: "Autenticação".
+#
+# Autenticação:
+#   description: |
+#     O que esse grupo de endpoints permite fazer, e por qual perfil.

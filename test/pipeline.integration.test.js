@@ -34,27 +34,35 @@ const RHNETSOCIAL_BUNDLE = path.join(OUTPUT_DIR, 'rhnetsocial.json');
 // Todo caminho que este arquivo sobrescreve, em algum dos testes.
 const MANAGED_FILES = [AUTH_RAW, RHNETSOCIAL_RAW, AUTH_BUNDLE, RHNETSOCIAL_BUNDLE];
 
-/** Lê o conteúdo atual de cada caminho gerenciado (o que não existir vira
+/** Lê o conteúdo atual de cada caminho da lista (o que não existir vira
  *  "ausente" no Map) — usado para poder restaurar exatamente esse
  *  estado depois, em vez de apagar cegamente. */
-function backupManagedFiles() {
+function backupFiles(files) {
   const backups = new Map();
-  for (const file of MANAGED_FILES) {
+  for (const file of files) {
     if (fs.existsSync(file)) backups.set(file, fs.readFileSync(file));
   }
   return backups;
 }
 
-/** Restaura cada caminho gerenciado ao que estava no backup (ou remove,
+/** Restaura cada caminho da lista ao que estava no backup (ou remove,
  *  se o backup não tinha esse arquivo — ou seja, ele não existia antes). */
-function restoreManagedFiles(backups) {
-  for (const file of MANAGED_FILES) {
+function restoreFiles(files, backups) {
+  for (const file of files) {
     if (backups.has(file)) {
       fs.writeFileSync(file, backups.get(file));
     } else {
       fs.rmSync(file, { force: true });
     }
   }
+}
+
+function backupManagedFiles() {
+  return backupFiles(MANAGED_FILES);
+}
+
+function restoreManagedFiles(backups) {
+  restoreFiles(MANAGED_FILES, backups);
 }
 
 /** Copia as fixtures para src/base/ e roda o pipeline real (lint+bundle),
@@ -127,20 +135,48 @@ test('inject-descriptions grava x-post-response no login, gravando a variável g
   assert.match(script, /pm\.globals\.set\('sci_auth_token'/);
 });
 
-test('inject-tag-descriptions corrige a tag Feriado (era "criação, edição e exclusão", vira somente leitura)', () => {
+test('tag sem entrada em tags.yaml preserva a descrição original do backend (comportamento padrão)', () => {
   const rh = readBundle('rhnetsocial');
+  // Hoje, rhnetsocial/tags.yaml está limpo (sem overrides — ver
+  // docs/arquitetura.md, decisão 12) — então TODA tag deve manter o
+  // texto original do fixture, sem substituição nenhuma.
   const feriadoTag = rh.tags.find((t) => t.name === 'Feriado');
-  assert.ok(feriadoTag);
-  assert.doesNotMatch(feriadoTag.description, /criação, edição e exclusão/);
-  assert.match(feriadoTag.description, /exclusivamente em modo de leitura/);
+  const funcionarioTag = rh.tags.find((t) => t.name === 'Funcionario');
+  assert.match(feriadoTag.description, /vindo do backend/);
+  assert.match(funcionarioTag.description, /vindo do backend/);
 });
 
-test('tag sem entrada em tags.yaml preserva a descrição original do backend', () => {
-  const rh = readBundle('rhnetsocial');
-  // No fixture, "Funcionario" TEM entrada em tags.yaml — troca para o texto
-  // do decorator, não o "placeholder vindo do backend" do fixture bruto.
-  const funcionarioTag = rh.tags.find((t) => t.name === 'Funcionario');
-  assert.doesNotMatch(funcionarioTag.description, /placeholder vindo do backend/);
+test('inject-tag-descriptions aplica um override quando tags.yaml tem uma entrada (mecanismo, independente do conteúdo real atual)', () => {
+  // Este teste escreve uma sobrescrita TEMPORÁRIA em tags.yaml — não usa
+  // o conteúdo real do projeto (que muda conforme o trabalho de
+  // "engenharia de escrita" avança) — para não acoplar "o mecanismo
+  // funciona" a "o texto X está presente hoje". Foi reescrito assim
+  // depois de uma limpeza de conteúdo real ter quebrado a versão
+  // anterior deste teste — ver docs/arquitetura.md, decisão 12.
+  const tagsPath = path.join(ROOT, 'src/decorators/rhnetsocial/tags.yaml');
+  const backup = backupFiles([tagsPath]);
+
+  try {
+    fs.writeFileSync(
+      tagsPath,
+      'Feriado:\n  description: |\n    TEXTO DE TESTE — sobrescrita temporária, nunca deveria ir pro repositório de verdade.\n'
+    );
+
+    execFileSync('node', [path.join(ROOT, 'scripts/build-openapi.js')], { stdio: 'pipe' });
+
+    const rh = readBundle('rhnetsocial');
+    const feriadoTag = rh.tags.find((t) => t.name === 'Feriado');
+    assert.match(feriadoTag.description, /TEXTO DE TESTE/);
+    assert.doesNotMatch(feriadoTag.description, /placeholder vindo do backend/);
+  } finally {
+    restoreFiles([tagsPath], backup);
+    // Reconstrói com o tags.yaml real de volta, para não deixar o
+    // bundle em disco refletindo a sobrescrita temporária depois deste
+    // teste (os testes anteriores neste arquivo já rodaram e não serão
+    // reexecutados, mas deixar o estado limpo evita confusão em quem
+    // for debugar manualmente depois de rodar a suíte).
+    execFileSync('node', [path.join(ROOT, 'scripts/build-openapi.js')], { stdio: 'pipe' });
+  }
 });
 
 describe('proteção contra apagar conteúdo real pré-existente (regressão do bug em produção)', () => {

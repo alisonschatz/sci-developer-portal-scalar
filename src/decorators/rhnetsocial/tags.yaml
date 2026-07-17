@@ -1,53 +1,18 @@
 # Chaveado pelo nome EXATO da tag (tags[].name) no spec de origem desta API.
 # Tag sem entrada aqui mantém a descrição original vinda do backend.
 #
-# A descrição de tag é onde o Scalar renderiza o detalhe de permissão por
-# recurso — ver README, seção "Onde cada tipo de conteúdo deve morar".
+# Limpo de propósito (2026-07) — sem texto personalizado ainda pronto.
+# Descrições de tag são conteúdo de "engenharia de escrita voltada ao
+# cliente" (detalhe de permissão por recurso) — entram aqui quando
+# prontas.
 #
-# ⚠️ As descrições de tag que vêm do backend nem sempre batem com as
-# permissões reais. O caso confirmado até agora: a tag "Feriado" descrevia
-# genericamente "criação, edição e exclusão", mas esse recurso é só leitura
-# via API — e exclusão nunca está disponível via API, para nenhum recurso
-# desta API. Reescrevemos essas descrições com base nas permissões reais.
-# Vale levar isso para o backend considerar corrigir na origem.
-
-Feriado:
-  description: |
-    Consulta ao calendário de feriados nacionais, estaduais e municipais
-    usados pelo sistema para cálculo de banco de horas e escalas.
-
-    > [!NOTE]
-    > Este recurso opera **exclusivamente em modo de leitura (GET)** via
-    > API — cadastro, edição e exclusão de feriados são feitos apenas pela
-    > interface web do RH Net Social.
-
-Funcionario:
-  description: |
-    Admissão preliminar e completa de funcionários, e envio de documentos
-    associados. Consulta e cadastro/edição são permitidos; exclusão não
-    está disponível via API para nenhum perfil.
-
-Dependente:
-  description: |
-    Cadastro, edição e consulta de dependentes de funcionários, incluindo
-    upload de documentos comprobatórios. Exclusão não está disponível via
-    API para nenhum perfil.
-
-Autonomo:
-  description: |
-    Gestão de trabalhadores autônomos e dos serviços prestados por eles.
-    Consulta e cadastro/edição são permitidos para autônomos e serviços;
-    o cadastro de **tipos de serviço** é somente leitura via API.
-
-BancoHoras:
-  description: |
-    Lançamento de horas trabalhadas e consulta às regras de banco de
-    horas configuradas. A **configuração** das regras em si é somente
-    leitura via API — é definida pela interface web do RH Net Social.
-
-Liberacao:
-  description: |
-    Fluxo de aprovação e efetivação de registros enviados
-    preliminarmente (admissões, serviços de autônomo, dependentes),
-    disponível via API para os perfis Cliente/Empresa e
-    Administrador/Contabilidade.
+# ⚠️ Nota para quando isso for retomado: a tag "Feriado" tinha uma
+# correção aqui (a descrição original do backend dizia "criação, edição
+# e exclusão", mas esse recurso é só leitura via API). Removida nesta
+# limpeza — a descrição original (potencialmente enganosa) volta a
+# aparecer até esse texto ser reescrito. Ver docs/arquitetura.md,
+# decisão 12.
+#
+# ExemploDeTag:
+#   description: |
+#     O que esse grupo de endpoints permite fazer, e por qual perfil.

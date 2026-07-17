@@ -121,7 +121,7 @@ test('rejeita securitySchemes vazio ou com entrada sem name', () => {
 
 test('aceita securitySchemes (plural) como alternativa válida a securityScheme numa API não-auth', () => {
   const errors = validateManifest([
-    { id: 'auth', slug: 'auth', sourceUrlEnv: 'X', serverUrl: 'https://x', isAuthProvider: true, default: true, securityScheme: null },
+    { id: 'auth', slug: 'auth', sourceUrlEnv: 'X', serverUrl: 'https://x', isAuthProvider: true, default: true, securityScheme: null, tokenResponseField: 'token' },
     {
       id: 'multi',
       slug: 'multi',

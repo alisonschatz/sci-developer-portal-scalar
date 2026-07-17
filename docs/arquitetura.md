@@ -408,12 +408,284 @@ Uma API futura só precisa do campo plural se tiver mais de um scheme
 relevante — o caso comum (um scheme Bearer só) continua usando o campo
 `securityScheme` singular, sem nenhuma mudança.
 
-## O que foi testado de verdade neste ambiente
+## 12. Limpeza de conteúdo personalizado (descriptions/tags/examples)
+
+A pedido explícito, `descriptions.yaml`, `tags.yaml` e `examples.json`
+das duas APIs foram esvaziados de volta ao formato "recém-escaneado"
+(o mesmo que `scripts/new-api.js` gera para uma API nova) — incluindo a
+correção da tag "Feriado" da RH Net Social (a descrição original do
+backend, "criação, edição e exclusão", volta a aparecer, mesmo sendo
+potencialmente enganosa: esse recurso é só leitura via API). Esse
+conteúdo é "engenharia de escrita voltada ao cliente" — texto que
+descreve permissões e exemplos de negócio para quem está integrando —
+e ainda não estava pronto; falar diferente do time até lá seria pior do
+que deixar o texto genérico do backend por enquanto.
+
+**O que NÃO foi removido, de propósito:** os `postResponseScript` das
+duas operações da Auth (login e refresh), em `descriptions.yaml`. Não é
+texto de marketing — é o mecanismo funcional que grava o token
+compartilhado em `pm.globals`. Removê-lo quebraria o compartilhamento de
+token entre as APIs, que é a funcionalidade central do portal.
+
+Essa limpeza expôs um acoplamento frágil em dois testes de
+`test/pipeline.integration.test.js`: eles verificavam o **texto real**
+de `tags.yaml` (a correção da tag "Feriado"), então quebraram assim que
+o texto mudou — mesmo o *mecanismo* que eles deveriam testar continuando
+correto. Foram reescritos para testar o mecanismo com uma sobrescrita
+temporária de `tags.yaml`, feita e desfeita dentro do próprio teste (com
+o mesmo padrão de backup/restore já usado em outros lugares do arquivo),
+em vez de depender do conteúdo real do projeto — que agora muda por
+fora, no trabalho de escrita, sem relação com o código.
+
+## 13. `preferredSecurityScheme`: só um por vez para schemes de operações diferentes
+
+A configuration inicial marcava **os dois** schemes da Auth
+("Gerar JWT" e "Atualizar JWT") como `preferred: true` simultaneamente,
+resultando em `preferredSecurityScheme: ['Gerar JWT', 'Atualizar JWT']`
+— um array, que a Scalar documenta como uma relação **"OU"**
+(`node_modules/@scalar/types/dist/api-reference/authentication-configuration.d.ts`):
+"o usuário pode alternar entre estes". Isso faz sentido quando uma
+MESMA operação aceita esquemas alternativos — não é o caso aqui:
+"Gerar JWT" (Basic) é usado exclusivamente pelo login, "Atualizar JWT"
+(Bearer) exclusivamente pelo refresh. Não existe uma chamada onde as
+duas sejam alternativas cabíveis; marcar as duas como preferidas ao
+mesmo tempo não tinha um significado coerente na Scalar, e é bem
+provável que tenha contribuído para o preenchimento automático não se
+comportar como esperado.
+
+Correção: só "Gerar JWT" (o ponto de entrada — é o que se usa para
+logar pela primeira vez) é `preferred: true`. "Atualizar JWT" continua
+com `prefill` configurado (`token: '{{sci_auth_token}}'`), mas **sem**
+estar em `preferredSecurityScheme` — o exemplo oficial do schema
+(`preferredSecurityScheme: 'apiKeyHeader', securitySchemes: { apiKeyHeader: {...},
+httpBearer: {...}, httpBasic: {...} }`) já mostra isso: `securitySchemes`
+(o mapa de prefill) e `preferredSecurityScheme` (o que abre selecionado
+por padrão) são **independentes** — dá para fornecer prefill para vários
+schemes tendo só um marcado como preferido. Como o próprio endpoint de
+refresh declara "Atualizar JWT" como seu security requirement, o Scalar
+deve usá-lo automaticamente ao abrir essa operação específica,
+independente do que está marcado como "preferido" no nível do
+documento.
+
+**Isso NÃO resolve, sozinho, o problema mais profundo relatado pelo
+usuário** — a variável `{{sci_auth_token}}` não estar sendo aplicada
+visualmente no campo de "Atualizar JWT" mesmo depois do login. Essa
+parte tem indícios fortes de ser uma limitação atual, em aberto, do
+próprio Scalar — ver a issue
+[scalar/scalar#7161](https://github.com/scalar/scalar/issues/7161)
+("Map authentication config to the new store"), aberta pelo time deles
+em outubro/2025, descrevendo exatamente esse sintoma: configuration de
+authentication não sendo mapeada para o "novo store" interno do cliente
+de API. Ainda sem confirmação de que a versão instalada (1.62.7) já
+tem correção. Diagnóstico em andamento — próximo passo é isolar se
+limpar o localStorage (estado de sessões de teste anteriores, salvas
+antes desta correção) resolve, ou se é de fato a limitação upstream.
+
+## 14. `useTokenBridge.js` — a variável nativa não persiste entre requisições
+
+Depois da decisão 13, o usuário reportou (com evidência concreta:
+gerava o token, entrava no refresh, e a variável "estava lá, mas sem
+valor") que o preenchimento automático continuava falhando. Diagnóstico
+em 3 passos, cada um eliminando uma hipótese:
+
+1. **Não era o painel não mostrar o campo certo.** O campo já mostrava
+   `{{sci_auth_token}}` corretamente — ou seja, a decisão 13 (prefill
+   configurado) estava certa. O problema era outro.
+2. **O script não roda.** Depois de "Send" no login, nenhuma seção
+   "Tests" aparece no painel de resposta — o `pm.test(...)` dentro do
+   `postResponseScript` nunca produz saída visível.
+3. **Achado no código-fonte, não em documentação:** o motivo real está
+   em `node_modules/@scalar/workspace-store/dist/request-example/variable-store/index.js`.
+   A função `createVariablesStoreForRequest()` — o nome já entrega —
+   cria um store de variáveis (incluindo o que seria `pm.globals`)
+   **do zero, em memória, por requisição individual**. Mesmo que o
+   script rode e chame `pm.globals.set(...)`, esse valor vive só
+   dentro da execução daquela ÚNICA requisição — é descartado assim
+   que ela termina, nunca persistindo para a PRÓXIMA chamada (login →
+   refresh, ou login → RH Net Social). Isso é consistente com a issue
+   #7161 (decisão 13): o "novo store" que substituiria isso por algo
+   persistente parece não estar totalmente conectado nesta versão.
+
+**Solução, sugerida pelo usuário e implementada:** em vez de depender do
+Scalar resolver a variável internamente, interceptar a requisição de
+saída via `customFetch` — o mesmo hook oficial já usado (e removido) na
+decisão 2, mas com um propósito diferente e mais restrito. `src/composables/useTokenBridge.js`:
+
+- Observa toda resposta vinda do server da API `auth` (login e refresh
+  incluídos — sem hardcode de caminho, casa por prefixo de URL contra
+  `serverUrl` do manifesto) e guarda o token em uma variável de módulo
+  simples, em memória — não depende de `pm.globals`, `localStorage`,
+  nem de nenhum mecanismo interno do Scalar.
+- Antes de repassar QUALQUER requisição pro `fetch` de verdade, checa
+  se o destino é uma API que consome o token compartilhado (derivado do
+  manifesto: `securityScheme`/`securitySchemes` com prefill de `token`
+  — nunca URL hardcoded) e se o header `Authorization` que o Scalar
+  estava prestes a enviar está ausente, vazio, ou é literalmente o
+  placeholder não resolvido — só nesses casos substitui pelo token
+  capturado. Um valor real que a pessoa tenha digitado manualmente
+  nunca é sobrescrito.
+
+O campo de autenticação na tela continua mostrando `{{sci_auth_token}}`
+como texto — isso é o comportamento esperado de templating (Postman
+funciona igual: o campo mostra a referência, não o valor resolvido). O
+que muda é que a requisição **enviada de verdade** carrega o token
+correto, verificado com um teste que simula o fluxo completo
+(`test/token-bridge.test.js`: login → captura → correção automática do
+header numa chamada seguinte, com um `fetch` fake que não faz rede de
+verdade).
+
+**Por que não voltar pro banner:** o usuário foi explícito — queria
+automático, não uma UI de confirmação manual. A ponte entrega isso: zero
+elementos visuais, e resolve o problema na camada que realmente importa
+(a requisição HTTP em si), não só a aparência do campo. O trade-off
+aceito é o inverso do banner: se a ponte falhar silenciosamente por
+algum motivo não previsto, não há nenhum aviso visual — mitigado por ela
+ser pequena, pura em quase toda a lógica, e coberta por teste que
+exercita o fluxo ponta a ponta.
+
+### 14.1 — Primeira versão não funcionava: assinatura errada de `customFetch`
+
+O usuário testou a v1 desta ponte e reportou exatamente o mesmo sintoma
+de antes (`x-scalar-secret-token` vazio, refresh sem token). A causa,
+desta vez encontrada direto no código-fonte do Scalar, não em
+documentação nem em inferência:
+
+`node_modules/@scalar/api-client/dist/v2/blocks/operation-block/helpers/send-request.js`:
+
+```js
+const response = isElectron()
+  ? await customFetch(...requestPayload)
+  : await customFetch(request ?? buildSafeBodyRequest(...requestPayload));
+```
+
+No navegador (não-Electron — o caso deste portal), `customFetch` é
+chamado com **um único argumento**: um `Request` já pronto
+(`buildSafeBodyRequest`, o fallback, também sempre retorna
+`new Request(...)` — conferido em
+`node_modules/@scalar/helpers/dist/http/can-method-have-body.js`). A
+v1 da ponte assumia a assinatura `customFetch(url, init)`, então `init`
+chegava sempre `undefined`. Pior: ao tentar corrigir o header, a v1
+construía `{ headers: <só o Authorization> }` — passado como `init` para
+`fetch(request, init)`, isso **substitui todos os headers da
+requisição original** (Content-Type, Accept etc.), não só adiciona o
+Authorization. Mesmo se a correção do token tivesse funcionado, a
+requisição provavelmente quebraria de outro jeito, silenciosamente.
+
+**Correção:** `readAuthorizationHeader()` e `buildPatchedRequest()`
+agora tratam os dois formatos de chamada — Request único (o caso real)
+e `(url, init)` de dois argumentos (Electron, ou uso direto). Quando o
+`input` é um `Request`, a correção clona `input.headers` (preservando
+tudo) e só sobrescreve o Authorization, via `new Request(input, {
+headers })` — que preserva method/body/mode/credentials do original.
+`test/token-bridge.test.js` tem um teste que reproduz o formato exato de
+chamada do Scalar (`fakeFetch` recebendo só 1 argumento, verificado com
+`arguments.length === 1`) e confirma que outros headers e o body
+sobrevivem à correção.
 
 Diferente da v1 (cujo README listava quase tudo como "não testei, sandbox
 sem acesso ao CDN do Scalar"), este ambiente tinha acesso ao registro do
 npm — o que permitiu instalar as dependências reais e rodar o pipeline
 completo:
+
+## 15. Seleção de scheme no nível do documento "vaza" pra toda operação — remover `preferred`
+
+Depois da correção 14.1, o usuário testou a UX de seleção de scheme em
+si (independente da ponte de token) e reportou que, tanto no login
+quanto no refresh, os dois schemes ("Gerar JWT" e "Atualizar JWT")
+ficavam disponíveis pra escolher manualmente — o que ele queria — mas
+perguntou se dava pra cada operação **selecionar sozinha** o scheme
+certo dela ao entrar, mantendo os dois visíveis.
+
+Achado no código-fonte
+(`node_modules/@scalar/workspace-store/dist/request-example/context/security/get-selected-security.js`),
+a ordem de prioridade real de qual scheme mostrar para uma operação:
+
+```
+1. Seleção no nível da OPERAÇÃO (se houver)
+2. Seleção no nível do DOCUMENTO (se houver)
+3. preferredSecurityScheme da configuration
+4. Primeiro security requirement da própria OPERAÇÃO (no OpenAPI)
+5. Sem seleção
+```
+
+A decisão 13 marcava "Gerar JWT" como `preferred: true` — isso vira
+`preferredSecurityScheme: 'Gerar JWT'` na configuration, prioridade 3.
+Como prioridade 3 vem ANTES de prioridade 4 (o que a própria operação
+declara), esse "preferido" se aplicava a **toda operação do documento**
+que não tivesse uma seleção mais específica — inclusive o refresh, que
+deveria usar "Atualizar JWT" (prioridade 4, o requirement que ELE
+declara), não "Gerar JWT". Ou seja: a correção da decisão 13 (não
+marcar os dois preferidos ao mesmo tempo, por serem operações
+diferentes) resolveu um problema, mas criou outro — marcar QUALQUER UM
+dos dois como preferido do documento inteiro "vaza" esse scheme pra
+operações que deveriam usar o outro.
+
+**Correção:** nenhum scheme do documento `auth` tem `preferred: true`.
+Sem prioridade 3, cada operação cai naturalmente pra prioridade 4 — o
+próprio requirement que ela declara no OpenAPI. Login mostra "Gerar
+JWT" sozinho, refresh mostra "Atualizar JWT" sozinho, automaticamente,
+sem seleção manual — e como o seletor de auth lista todos os schemes
+definidos no documento independente de qual está "selecionado" no
+momento, os dois continuam disponíveis pra trocar na mão, exatamente
+como o usuário confirmou que já acontecia e queria manter.
+
+`prefill` (o preenchimento de `{{sci_auth_token}}` em "Atualizar JWT")
+continua funcionando igual — é independente de `preferred`, aplica
+sempre que aquele scheme específico estiver ativo, seja por seleção
+automática (prioridade 4) ou manual (prioridade 1).
+
+## 16. `useTokenStorageSync.js` — grava o token direto na chave de auth do Scalar
+
+Depois da decisão 15, o usuário testou de novo e ainda não funcionou —
+e trouxe uma observação certeira, testando manualmente no DevTools:
+editar a chave `scalar-reference-auth-<slug>` só tem efeito na
+**próxima vez que o documento é ativado** (trocar de aba, ou recarregar
+a página), nunca instantaneamente com a página já aberta. Confirmado no
+código-fonte: `loadAuthFromStorage()` (`ApiReference.vue.script.js`) só
+roda no momento em que `x-scalar-active-document` muda — não há nenhum
+listener de `storage` nem releitura reativa enquanto o documento já
+está ativo.
+
+Isso implica uma consequência prática direta: gerar o token na Auth e
+depois **trocar de aba pra RH Net Social** já deveria funcionar (é uma
+ativação de documento nova) — o problema concentrado é só dentro da
+MESMA aba (login → refresh, sem trocar de documento).
+
+**Solução:** `src/composables/useTokenStorageSync.js` escreve o token
+direto na MESMA chave e no MESMO formato que o Scalar usa pra persistir
+autenticação — confirmado peça por peça no código-fonte:
+
+- Chave: `scalar-reference-auth-<slug>` (`@scalar/helpers` +
+  `@scalar/api-reference/dist/helpers/storage.js`).
+- Formato: `secrets[nomeDoScheme] = { type: 'http', 'x-scalar-secret-token',
+  'x-scalar-secret-username', 'x-scalar-secret-password' }`
+  (`@scalar/workspace-store/dist/entities/auth/schema.js` — o mesmo
+  shape serve pra Basic e Bearer, só usando os campos relevantes).
+
+Cada alvo (auth → "Atualizar JWT"; cada API consumidora → o scheme
+dela) é descoberto a partir do manifesto, do mesmo jeito que o resto do
+projeto — nenhum slug ou nome de scheme hardcoded fora dele. A escrita
+é sempre "ler o que já existe → só atualizar o `x-scalar-secret-token`
+do scheme certo → gravar de volta" — nunca um `setItem` cego, pra não
+apagar credenciais que a pessoa já tenha digitado (usuário/senha do
+Basic) nem a seleção de scheme que já estivesse salva.
+
+**O que este módulo deliberadamente NÃO faz:** mexer em `selected` (a
+parte da chave que decide qual scheme está "escolhido"). O schema
+revela que existe `selected.path`, uma seleção **por operação**
+(chaveada por caminho+método) — teoricamente a peça que faltava pra
+"cada operação seleciona sozinha o scheme certo" (decisão 15) funcionar
+mesmo com uma seleção de documento salva por cima. Não implementado:
+o formato exato da chave (caminho literal? normalizado? método em
+que caixa?) não tem confirmação segura o bastante pra arriscar — errar
+o formato não dá erro nenhum, só silenciosamente não aplica, o mesmo
+tipo de falha silenciosa que já consumiu várias rodadas de diagnóstico
+neste projeto. Fica documentado aqui como a via mais provável de
+completar o que falta, se for retomado com acesso a um navegador real
+pra confirmar o formato por engenharia reversa direta (inspecionar o
+valor salvo depois de uma seleção manual por operação).
+
+## O que foi testado de verdade neste ambiente
 
 1. **`npm install`** — as 317 dependências reais (Vite, Vue 3, `@scalar/api-reference`
    1.62.x, `@redocly/cli` 2.39.x) foram instaladas e resolvidas sem
@@ -429,21 +701,21 @@ completo:
    permanente (`test/pipeline.integration.test.js`), não uma checagem
    manual pontual.
 3. **`vite build` real** — compilou o app Vue completo (App.vue,
-   PortalHeader.vue, TokenBanner.vue, os composables, importando
-   `@scalar/api-reference` de verdade) sem erros, gerando `dist/` com
-   `index.html`, os assets e os bundles de `public/openapi/` copiados
-   corretamente.
+   SidebarBrand.vue, os composables, importando `@scalar/api-reference`
+   de verdade) sem erros, gerando `dist/` com `index.html`, os assets e
+   os bundles de `public/openapi/` copiados corretamente.
 4. **`vite preview` servido e checado via `curl`** — confirmando que
    `index.html`, `assets/sci-logo.png` (sem hash, servido no caminho
    absoluto esperado) e `openapi/auth.json` respondem `200`, e que o
    conteúdo do bundle final é o esperado (`x-post-response` presente).
-5. **41 testes automatizados** (`npm test`, `node:test`) cobrindo a
-   lógica pura de todo script do pipeline e do composable de captura de
-   token, além de um teste que monta um componente Vue de verdade (DOM
-   real via `@happy-dom/global-registrator`) para cobrir a classe de bug
-   descrita na decisão 7 acima — erros que só acontecem em runtime, na
-   função `setup()`, que `vite build` não pega. Ver README, seção
-   "Testes automatizados", para a lista completa.
+5. **70 testes automatizados** (`npm test`, `node:test`) cobrindo a
+   lógica pura de todo script do pipeline, o composable de ponte de
+   token (incluindo o fluxo completo login → captura → correção do
+   header, com fetch fake), e um teste que monta um componente Vue de
+   verdade (DOM real via `@happy-dom/global-registrator`) para cobrir a
+   classe de bug descrita na decisão 7 — erros que só acontecem em
+   runtime, na função `setup()`, que `vite build` não pega. Ver README,
+   seção "Testes automatizados", para a lista completa.
 
 ## O que ainda depende de QA num navegador real
 
@@ -454,20 +726,24 @@ verdade continua importante, mesmo com bem mais coisa testada que na v1:
   real. O `ResizeObserver` do header e o CSS var do Scalar foram
   validados por leitura de código e documentação oficial, não por
   screenshot.
-- **Preenchimento automático do token em tempo real** — a leitura de
-  `pm.globals` pelo campo de autenticação de outro documento, dentro da
-  interface renderizada do Scalar, é uma interação de UI que só um
-  navegador real exercita. Sem o banner (removido — decisão 10), não há
-  mais nenhuma confirmação visual caso isso não se comporte exatamente
-  como esperado — ver o item de baixo, que é a lacuna concreta mais
-  provável hoje.
+- **`useTokenBridge.js` com tráfego de rede real** — o fluxo completo
+  (login → captura → correção de header) foi testado com um `fetch`
+  fake (`test/token-bridge.test.js`), não contra as APIs de produção de
+  verdade nem dentro do Scalar renderizado num navegador real. A lógica
+  de correspondência de URL, extração de token e decisão de quando
+  corrigir o header é a mesma; o que não foi exercitado é a integração
+  completa (Scalar realmente chamando nosso `customFetch` com o shape
+  exato de `input`/`init` que ele usa por dentro).
 - **Nome do security scheme da RH Net Social** — assumido como
   `'bearerAuth'` no manifesto, nunca confirmado contra o spec real dela
   (ao contrário da Auth, cujo `auth.json` real revelou nomes bem
   diferentes do que estava assumido: "Gerar JWT"/"Atualizar JWT"). Se o
-  nome real for outro, o preenchimento automático do token na RH Net
-  Social simplesmente não funciona — silenciosamente, sem erro. Ver
-  README, seção "Como o token é compartilhado entre as APIs", para como
+  nome real for outro, `getBearerTokenConsumerServers()` ainda inclui o
+  `serverUrl` certo (isso não depende do nome do scheme), mas o campo de
+  autenticação na tela não vai mostrar o placeholder pré-preenchido —
+  cosmético, já que a ponte de token corrige o header de qualquer jeito,
+  mas vale corrigir para a experiência ficar coerente. Ver README,
+  seção "Como o token é compartilhado entre as APIs", para como
   conferir.
 - **OAuth2 / fluxos de autenticação mais complexos** — o projeto hoje só
   lida com Bearer token via login customizado. Se uma API futura da SCI

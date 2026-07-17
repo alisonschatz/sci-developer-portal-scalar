@@ -1,27 +1,3 @@
 {
-  "_comment": "Todos os valores abaixo são fictícios (CPF, nomes, contas). Nunca cole dados reais aqui, mesmo 'anonimizados' — ver README (LGPD).",
-
-  "POST /api/v1/funcionario/preliminar": {
-    "request": {
-      "nome": "Fulano de Tal Sintético",
-      "cpf": "000.000.000-00",
-      "data_nascimento": "1990-01-01",
-      "cargo": "Analista de Testes"
-    },
-    "responses": {
-      "201": {
-        "id": 123456,
-        "status": "pendente_liberacao"
-      }
-    }
-  },
-
-  "GET /api/v1/feriados": {
-    "responses": {
-      "200": [
-        { "data": "2026-01-01", "descricao": "Confraternização Universal", "abrangencia": "nacional" },
-        { "data": "2026-11-15", "descricao": "Proclamação da República", "abrangencia": "nacional" }
-      ]
-    }
-  }
+  "_comment": "Limpo de propósito (2026-07) — sem exemplos personalizados ainda prontos. Chaveado por \"MÉTODO /caminho\". Use sempre dados sintéticos, nunca reais — ver README (LGPD)."
 }
