@@ -12,10 +12,15 @@ import {
   createTokenBridgeFetch,
 } from '../src/composables/useTokenBridge.js';
 
-test('getBearerTokenConsumerServers() inclui a RH Net Social (securityScheme simples) e não inclui a auth', () => {
+test('getBearerTokenConsumerServers() inclui a RH Net Social (securityScheme simples) E a própria auth (Atualizar JWT tem prefill de token)', () => {
   const servers = getBearerTokenConsumerServers();
   assert.ok(servers.includes('https://api2.rhnetsocial.com.br'));
-  assert.equal(servers.includes('https://api-auth.sci.com.br'), false);
+  // A auth agora ENTRA na lista — "Atualizar JWT" tem prefill de token
+  // (precisa do token atual pra renovar). Só "Gerar JWT" (Basic, sem
+  // prefill) fica de fora — mas isso não afeta esta lista, que é por
+  // SERVER, não por scheme (ver teste abaixo sobre needsBearerPatch
+  // não mexer no header Basic do login).
+  assert.ok(servers.includes('https://api-auth.sci.com.br'));
 });
 
 test('isRequestLike reconhece um Request de verdade e rejeita string/objeto qualquer', () => {
@@ -165,6 +170,40 @@ test('createTokenBridgeFetch: não mexe em requisições para servers fora do ma
   await tokenBridgeFetch(new Request('https://sci-developer-portal.example/openapi/rhnetsocial.json'));
 
   assert.equal(receivedAuthHeader, null);
+});
+
+test('createTokenBridgeFetch: corrige a PRÓPRIA chamada de refresh da auth (Bearer), mas nunca mexe na de login (Basic)', async () => {
+  const calls = [];
+  const fakeFetch = async function (requestArg) {
+    calls.push({ url: requestArg.url, authHeader: requestArg.headers.get('Authorization') });
+    if (requestArg.url.includes('/credencial/login')) {
+      return new Response(JSON.stringify({ token: 'token-do-login' }), { status: 201 });
+    }
+    return new Response('{}', { status: 200 });
+  };
+
+  const { tokenBridgeFetch } = createTokenBridgeFetch({ fetchImpl: fakeFetch });
+
+  // 1) Login com Basic real — não deveria ser tocado.
+  await tokenBridgeFetch(
+    new Request('https://api-auth.sci.com.br/api/v1/auth/credencial/login', {
+      method: 'POST',
+      headers: { Authorization: 'Basic dXNlcjpwYXNz' },
+    })
+  );
+  await new Promise((resolve) => setTimeout(resolve, 0));
+
+  // 2) Refresh, na MESMA API (auth) — com o placeholder não resolvido,
+  //    exatamente como o Scalar deixaria antes da correção.
+  await tokenBridgeFetch(
+    new Request('https://api-auth.sci.com.br/api/v1/auth/refresh', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer {{sci_auth_token}}' },
+    })
+  );
+
+  assert.equal(calls[0].authHeader, 'Basic dXNlcjpwYXNz', 'login não deveria ser mexido');
+  assert.equal(calls[1].authHeader, 'Bearer token-do-login', 'refresh deveria ter sido corrigido com o token do login');
 });
 
 test('createTokenBridgeFetch: nunca sobrescreve um Authorization real já presente (respeita preenchimento manual)', async () => {

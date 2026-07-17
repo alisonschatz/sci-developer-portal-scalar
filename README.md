@@ -36,7 +36,7 @@ Nesta versão:
 | Adicionar API nova | Editar 4+ arquivos à mão | Editar **1 array** em `apis.manifest.js` |
 | Compartilhamento de token | Funcionava só para RH Net Social, hardcoded | Automático para **qualquer** API do manifesto |
 | Bug do header/sidebar | Presente (posicionamento manual) | Corrigido com o mecanismo oficial do Scalar |
-| Pipeline testado | "Não testei num navegador real" (README da v1) | 77 testes automatizados, incluindo o pipeline Redocly rodando de verdade — ver [Testes](#testes-automatizados) |
+| Pipeline testado | "Não testei num navegador real" (README da v1) | 84 testes automatizados, incluindo o pipeline Redocly rodando de verdade — ver [Testes](#testes-automatizados) |
 | Callouts no overview | `<!-- theme: warning -->` (sintaxe não confirmada) | `> [!WARNING]` — sintaxe GFM que o Scalar documenta oficialmente<sup>[2]</sup> |
 
 ---
@@ -126,6 +126,26 @@ e depois trocar pra aba da RH Net Social já mostra o campo preenchido
 de verdade (não só o placeholder `{{sci_auth_token}}`), porque essa
 troca de aba é exatamente o momento em que o Scalar relê a chave. Ver
 `docs/arquitetura.md`, decisão 16.
+
+**A própria chamada de refresh também é corrigida pela ponte, não só
+pelo storage.** Uma versão anterior de `getBearerTokenConsumerServers()`
+excluía a Auth da lista de servers corrigidos em tempo real (pensando
+só no "Gerar JWT", que realmente não precisa de correção) — isso
+deixava a chamada de **refresh** (que usa Bearer, com o token atual) só
+com o preenchimento via storage, que precisa de uma troca de
+documento/reload pra aparecer. Corrigido: a mesma checagem de prefill
+já resolve os dois schemes da Auth sozinha, sem caso especial — login
+(Basic) nunca é tocado, refresh (Bearer) é corrigido na hora. Ver
+`docs/arquitetura.md`, decisão 18.
+
+**Quarta peça: `installTokenStorageGuard()`.** A escrita direta no
+storage (decisão 16) podia perder uma corrida contra o próprio ciclo de
+autosave do Scalar (debounced, ~500ms) — se ele escrevesse na mesma
+chave depois da nossa escrita, apagava o token. Em vez de tentar
+acertar o timing, o guard intercepta o próprio `storage.setItem`:
+depois de qualquer gravação nas chaves de auth relevantes — inclusive
+as do Scalar — reaplica o token por cima, na hora. Ver
+`docs/arquitetura.md`, decisão 19.
 
 **Trade-off consciente: o topo do documento Auth sempre mostra "Gerar
 JWT" e "Atualizar JWT" disponíveis, em vez de cada operação escolher
@@ -231,7 +251,7 @@ npm run dev               # check:openapi + vite (modo desenvolvimento)
 npm run build              # build:openapi + vite build → dist/
 npm run preview           # check:openapi + vite preview (serve dist/ localmente)
 
-npm test                  # 77 testes automatizados (unitários + integração Redocly real)
+npm test                  # 84 testes automatizados (unitários + integração Redocly real)
 ```
 
 ## Como adicionar uma API nova
@@ -262,7 +282,7 @@ leem o manifesto e se ajustam sozinhos.
 npm test
 ```
 
-77 testes (`node:test`, com `@happy-dom/global-registrator` como única
+84 testes (`node:test`, com `@happy-dom/global-registrator` como única
 dependência de teste extra — necessária só para o teste que monta um
 componente Vue de verdade), cobrindo:
 
@@ -310,7 +330,12 @@ componente Vue de verdade), cobrindo:
   ausente, vazia, ou com só um scheme — incluindo o caso real relatado
   (clique acidental no dropdown do topo deixando `selectedSchemes: []`)
   — e confirma que nunca reescreve à toa quando já está correto, nem
-  toca em `secrets`.
+  toca em `secrets`. E `installTokenStorageGuard()` (decisão 19): o
+  teste central reproduz a corrida suspeitada — grava o token, depois
+  simula o Scalar escrevendo por cima (sem saber do token) — e confirma
+  que os dois sobrevivem juntos; mais os casos de não mexer em chaves
+  fora do alvo, não interferir sem token capturado, e instalar/
+  desinstalar o guard de forma idempotente.
 - **`src/composables/useSidebarStickyOffset.js`** — com DOM real
   (`@happy-dom/global-registrator`), monta uma estrutura de sidebar
   fake (marca + seletor + busca + `.custom-scroll` + rodapé) e confirma
@@ -429,7 +454,7 @@ sci-developer-portal/
 ├── public/
 │   ├── assets/sci-logo.png
 │   └── openapi/                        # Gerado pelo pipeline (git-ignored)
-├── test/                               # 77 testes — ver seção "Testes automatizados"
+├── test/                               # 84 testes — ver seção "Testes automatizados"
 └── docs/
     ├── arquitetura.md                  # Decisões técnicas + fontes oficiais do Scalar
     └── adicionando-uma-nova-api.md     # Passo a passo completo

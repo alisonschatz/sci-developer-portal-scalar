@@ -734,6 +734,117 @@ manifesto quais documentos têm mais de um security scheme — hoje só a
 `auth`. Uma API futura com essa mesma necessidade seria coberta
 automaticamente, sem código novo.
 
+## 18. `getBearerTokenConsumerServers()` excluía a própria auth — refresh nunca tinha a requisição corrigida
+
+Com o topo do documento e o preenchimento do storage já funcionando
+bem (decisões 16 e 17), sobrou uma pergunta direta: "o Atualizar Token
+usa ele [o `sci_auth_token`] certo?" — e a resposta, olhando o código
+com atenção, era **não, não na camada que mais importa**.
+
+`getBearerTokenConsumerServers()` (a lista de servers que a ponte de
+`customFetch` corrige de verdade, em tempo real, na requisição que sai)
+tinha `if (api.isAuthProvider) continue` logo no início — pulando a
+própria Auth incondicionalmente. Fazia sentido pensando só em "Gerar
+JWT" (Basic, nada pra corrigir), mas "Atualizar JWT" também pertence à
+Auth, e esse scheme **precisa** do token atual como Bearer pra
+funcionar. A exclusão deixava a chamada de refresh em si sem nenhuma
+correção da ponte — só o preenchimento do campo via storage (decisão
+16) cobria esse caso, e só aparece depois de trocar de documento ou
+recarregar a página, não imediatamente ao clicar "Send".
+
+**Correção:** removida a exclusão. A mesma checagem que já existia
+(`hasBearerPrefill`, olhando se algum scheme da API tem `prefill.token`)
+resolve os dois casos da Auth sozinha, sem precisar de nenhum caso
+especial: "Gerar JWT" nunca entra na lista (não tem prefill de token),
+"Atualizar JWT" entra (tem). E como `needsBearerPatch()` só corrige um
+header ausente/vazio/placeholder — nunca um valor real — a chamada de
+login (com Basic de verdade) continua garantidamente intocada mesmo com
+o server da Auth agora na lista.
+
+`test/token-bridge.test.js` ganhou um teste dedicado que dispara as
+duas chamadas (login com Basic real, depois refresh com o placeholder)
+pela mesma ponte e confirma: login não muda, refresh sai com
+`Bearer <token capturado no login>`.
+
+## 19. `installTokenStorageGuard()` — a escrita direta perdia uma corrida contra o autosave do Scalar
+
+Depois da decisão 18 (a ponte corrigindo a própria chamada de refresh
+em tempo real), veio o relato: "ao gerar o token, não tá gerando os
+secrets do Atualizar no storage" — ou seja, mesmo com `syncTokenToStorage`
+(decisão 16) escrevendo direto na chave certa, o valor não estava
+sobrevivendo.
+
+A explicação mais provável, sem poder confirmar num navegador real:
+o próprio Scalar também escreve nessa mesma chave — `setAuth()`
+(`node_modules/@scalar/api-reference/dist/plugins/persistence-plugin.js`),
+debounced (~500ms), disparado sempre que o estado de auth muda em
+memória (ex.: a pessoa digitando usuário/senha em "Gerar JWT"). Essa
+escrita reflete só o que o Scalar sabe em memória — nunca o token que
+gravamos por fora — então, se ela disparar DEPOIS da nossa (uma corrida
+de tempo perfeitamente plausível: nosso `syncTokenToStorage` roda assim
+que a resposta do login chega; o debounce do Scalar pode disparar
+pouco depois), ela apaga o que escrevemos.
+
+**Correção:** em vez de tentar acertar o timing (frágil, e impossível
+de garantir sem controlar o código deles), `installTokenStorageGuard()`
+intercepta o próprio `storage.setItem` — a mesma ideia do `customFetch`,
+aplicada à escrita em vez da rede. Depois de QUALQUER gravação nas
+chaves de auth relevantes — inclusive as do próprio Scalar — o token
+capturado é reaplicado por cima, na hora, antes de devolver o
+controle. Não importa quando o Scalar decide escrever: nosso reforço
+sempre vem por último, porque intercepta a própria operação de escrita,
+não um horário específico.
+
+Detalhes de implementação que valem registrar:
+
+- `mergeTokenIntoSerializedEntry()` é uma função pura (sem tocar em
+  storage) que calcula o JSON final a partir de um valor já
+  serializado — usada tanto pela escrita direta (`writeTokenToScheme`)
+  quanto pelo guard. O guard não pode chamar `writeTokenToScheme`
+  diretamente (que usa `storage.setItem`, agora o próprio
+  `guardedSetItem`) — reentraria nele mesmo. Em vez disso, calcula o
+  valor final com a função pura e grava direto com o `setItem`
+  **original**, guardado numa closure antes de ser substituído.
+- Instalar o guard duas vezes é seguro (idempotente, via uma flag
+  `storage.__tokenBridgeGuardInstalled`) — importante porque
+  `App.vue` roda uma vez por sessão do componente, mas evita
+  double-wrapping caso algo remonte no futuro.
+- Chaves fora do alvo (ex.: `colorMode`, preferências do Scalar sem
+  relação com auth) nunca são tocadas pelo guard — só as chaves
+  `scalar-reference-auth-<slug>` derivadas do manifesto.
+
+Testado com um cenário que reproduz a corrida exata suspeitada: grava o
+token, depois simula o Scalar escrevendo por cima (um `setItem` com o
+JSON dele, sem o token) — e confirma que o token sobrevive, reaplicado,
+E que o que o Scalar escreveu (usuário/senha do Basic) também sobrevive
+junto.
+
+### 19.1 — A flag de idempotência do guard vazava pro storage de verdade
+
+A primeira versão do guard usava `storage.__tokenBridgeGuardInstalled = true`
+como flag de "já instalei, não instala de novo". Funcionava certinho
+no Storage falso dos testes (um objeto comum) — mas o usuário reportou
+essa chave aparecendo no `localStorage` de verdade, no navegador.
+
+Causa: `localStorage` não é um objeto JavaScript comum — é um "legacy
+platform object" (termo da própria especificação WHATWG) onde
+**qualquer atribuição de propriedade arbitrária vira uma entrada real
+de storage**. `storage.foo = 'bar'` num navegador de verdade funciona
+exatamente como `storage.setItem('foo', 'bar')`. E como o `localStorage`
+sobrevive a recarregar a página (diferente da memória do JavaScript),
+isso criava um bug pior que só "uma entrada solta": na próxima carga da
+página, o código lia essa flag de uma sessão anterior, achava que o
+guard já estava instalado, e **não instalava de novo** — mesmo o
+`setItem` "guardado" daquela sessão anterior não existindo mais na
+memória nova.
+
+**Correção:** a flag de idempotência virou um `WeakSet` em memória
+(`guardedStorages`, no escopo do módulo) — nunca toca em nenhuma chave
+de storage, se reseta sozinho a cada carregamento de página (memória
+nova = WeakSet novo), e `installTokenStorageGuard()` limpa a chave
+solta de versões anteriores (`removeItem('__tokenBridgeGuardInstalled')`)
+na primeira vez que roda, pra quem já tinha essa versão com bug.
+
 ## O que foi testado de verdade neste ambiente
 
 1. **`npm install`** — as 317 dependências reais (Vite, Vue 3, `@scalar/api-reference`
@@ -757,7 +868,7 @@ automaticamente, sem código novo.
    `index.html`, `assets/sci-logo.png` (sem hash, servido no caminho
    absoluto esperado) e `openapi/auth.json` respondem `200`, e que o
    conteúdo do bundle final é o esperado (`x-post-response` presente).
-5. **77 testes automatizados** (`npm test`, `node:test`) cobrindo a
+5. **84 testes automatizados** (`npm test`, `node:test`) cobrindo a
    lógica pura de todo script do pipeline, o composable de ponte de
    token (incluindo o fluxo completo login → captura → correção do
    header, com fetch fake), e um teste que monta um componente Vue de

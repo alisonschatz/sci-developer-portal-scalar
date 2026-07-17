@@ -50,11 +50,23 @@ const AUTH_HEADER = 'Authorization';
  *  derivado do manifesto, nunca hardcoded. Cobre tanto o caso simples
  *  (`securityScheme`, que sempre gera prefill com `token`) quanto o caso
  *  rico (`securitySchemes`, só entra se algum scheme tiver prefill com
- *  `token`). */
+ *  `token`).
+ *
+ *  Inclui a PRÓPRIA API auth quando algum scheme dela tem prefill de
+ *  token — hoje, "Atualizar JWT" (Bearer, usa o token atual pra
+ *  renovar). Uma versão anterior pulava a auth incondicionalmente
+ *  (`if (api.isAuthProvider) continue`), pensando só no caso de "Gerar
+ *  JWT" (Basic, sem token pra corrigir) — mas isso também deixava a
+ *  chamada de refresh sem correção nenhuma na requisição em si (só o
+ *  preenchimento do storage, decisão 16, cobria esse caso — e só
+ *  aparece depois de trocar de documento/recarregar). A mesma checagem
+ *  de `hasBearerPrefill`, sem a exclusão, já resolve os dois schemes da
+ *  auth corretamente: "Gerar JWT" nunca entra (não tem prefill de
+ *  token), "Atualizar JWT" entra sozinho. Ver docs/arquitetura.md,
+ *  decisão 18. */
 export function getBearerTokenConsumerServers() {
   const servers = [];
   for (const api of apis) {
-    if (api.isAuthProvider) continue;
     if (api.securityScheme) {
       servers.push(api.serverUrl);
     } else if (api.securitySchemes) {

@@ -195,3 +195,113 @@ export function ensureAllMultiSchemeSelections(storage) {
     }
   }
 }
+
+/**
+ * Pega um valor JÁ SERIALIZADO (uma string JSON, ou null/undefined) e
+ * devolve uma nova string com o token reaplicado nos schemes indicados
+ * — preservando o resto do conteúdo. Função pura, sem tocar em
+ * storage — usada tanto pela escrita direta quanto pelo guard abaixo,
+ * para o guard não precisar chamar `storage.setItem` de novo (o que
+ * reentraria nele mesmo).
+ */
+export function mergeTokenIntoSerializedEntry(rawValue, schemeNames, token) {
+  let entry;
+  try {
+    const parsed = rawValue ? JSON.parse(rawValue) : null;
+    entry = {
+      secrets: parsed && typeof parsed.secrets === 'object' ? parsed.secrets : {},
+      selected: parsed && typeof parsed.selected === 'object' ? parsed.selected : {},
+    };
+  } catch {
+    entry = { secrets: {}, selected: {} };
+  }
+
+  const secrets = { ...entry.secrets };
+  for (const schemeName of schemeNames) {
+    const existingScheme = secrets[schemeName] || { type: 'http' };
+    secrets[schemeName] = { ...existingScheme, 'x-scalar-secret-token': token };
+  }
+
+  return JSON.stringify({ ...entry, secrets });
+}
+
+/**
+ * Rastreia quais objetos `storage` já têm o guard instalado — em
+ * memória, via WeakSet (nunca persiste, nunca aparece como uma entrada
+ * de storage). Não usa `storage.__algumaFlag = true` de propósito: o
+ * `localStorage` do navegador é um "objeto especial" da plataforma
+ * (legacy platform object) onde QUALQUER atribuição de propriedade
+ * arbitrária vira uma entrada real de storage — `storage.foo = 'bar'`
+ * na prática funciona como `storage.setItem('foo', 'bar')`. Uma versão
+ * anterior fazia exatamente isso (`storage.__tokenBridgeGuardInstalled = true`)
+ * — funcionava no Storage falso dos testes (um objeto comum, sem esse
+ * comportamento), mas no navegador de verdade criava uma entrada
+ * visível E, pior, sobrevivia a recarregar a página — fazendo o guard
+ * achar que já estava instalado numa sessão totalmente nova, onde o
+ * `setItem` "guardado" da carga anterior não existe mais.
+ */
+const guardedStorages = new WeakSet();
+
+/**
+ * "Guarda" o `storage.setItem` para as chaves de auth relevantes.
+ *
+ * Por quê: o Scalar tem seu próprio ciclo de escrita nessa MESMA chave
+ * — `setAuth()`, debounced (~500ms), disparado sempre que o estado de
+ * auth muda em memória (ex.: a pessoa digitou usuário/senha em "Gerar
+ * JWT"). Essa escrita reflete só o que o Scalar sabe — nunca o token
+ * que gravamos por fora — e se ela acontecer DEPOIS da nossa (uma
+ * corrida de tempo perfeitamente plausível: nosso `syncTokenToStorage`
+ * roda assim que a resposta do login chega, e o debounce do Scalar
+ * pode disparar alguns instantes depois), ela apaga o que escrevemos,
+ * mesmo tendo funcionado por um instante.
+ *
+ * A correção não tenta acertar o timing — intercepta a própria escrita
+ * (mesma ideia do `customFetch`, aplicada ao `setItem`): depois de
+ * QUALQUER gravação nas chaves relevantes, reaplica o token por cima,
+ * na hora, antes de devolver o controle. Não importa quando o Scalar
+ * decide gravar — nosso reforço sempre vem por último.
+ *
+ * Retorna uma função pra desinstalar (útil em testes).
+ */
+export function installTokenStorageGuard(storage, state) {
+  if (!storage || typeof storage.setItem !== 'function' || guardedStorages.has(storage)) {
+    return () => {};
+  }
+
+  // Limpeza de uma versão anterior deste guard, que por engano escrevia
+  // `storage.__tokenBridgeGuardInstalled = true` — em navegadores de
+  // verdade, isso vira uma entrada real de storage (ver comentário
+  // acima). Sem função nenhuma a partir desta versão; remove se sobrou
+  // de um carregamento anterior da página.
+  try {
+    if (typeof storage.removeItem === 'function') {
+      storage.removeItem('__tokenBridgeGuardInstalled');
+    }
+  } catch {
+    // Não crítico — só uma limpeza de cortesia.
+  }
+
+  const originalSetItem = storage.setItem.bind(storage);
+  const targetsByKey = new Map();
+  for (const { slug, schemeName } of getTokenStorageTargets()) {
+    const key = authStorageKey(slug);
+    if (!targetsByKey.has(key)) targetsByKey.set(key, []);
+    targetsByKey.get(key).push(schemeName);
+  }
+
+  function guardedSetItem(key, value) {
+    if (state.token && targetsByKey.has(key)) {
+      originalSetItem(key, mergeTokenIntoSerializedEntry(value, targetsByKey.get(key), state.token));
+      return;
+    }
+    originalSetItem(key, value);
+  }
+
+  storage.setItem = guardedSetItem;
+  guardedStorages.add(storage);
+
+  return function uninstall() {
+    storage.setItem = originalSetItem;
+    guardedStorages.delete(storage);
+  };
+}

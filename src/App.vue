@@ -4,13 +4,21 @@ import { ApiReference } from '@scalar/api-reference';
 import SidebarBrand from './components/SidebarBrand.vue';
 import { buildScalarConfiguration } from './config/scalar.config.js';
 import { createTokenBridgeFetch } from './composables/useTokenBridge.js';
+import { installTokenStorageGuard } from './composables/useTokenStorageSync.js';
 
 // Ponte de token silenciosa: corrige o Authorization das requisições de
 // saída com o token capturado da Auth, contornando uma limitação
 // conhecida do Scalar (a variável compartilhada não persiste entre
 // requisições nessa versão — ver src/composables/useTokenBridge.js e
 // docs/arquitetura.md, decisão 14). Nenhuma UI — 100% automático.
-const { tokenBridgeFetch } = createTokenBridgeFetch();
+const { tokenBridgeFetch, state } = createTokenBridgeFetch();
+
+// Reaplica o token por cima de QUALQUER escrita futura nas chaves de
+// auth relevantes — inclusive as do próprio Scalar (debounced,
+// ~500ms), que sem isso podia apagar o token que acabamos de gravar.
+// Ver src/composables/useTokenStorageSync.js e docs/arquitetura.md,
+// decisão 19.
+installTokenStorageGuard(window.localStorage, state);
 
 // import.meta.env.BASE_URL entra aqui (em vez de dentro de
 // buildScalarConfiguration) para a função continuar testável em Node
