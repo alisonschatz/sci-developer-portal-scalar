@@ -11,6 +11,7 @@
     "api:fetch": "node scripts/fetch-api.js",
     "build:openapi": "npm run manifest:verify && npm run api:fetch && node scripts/build-openapi.js",
     "check:openapi": "node scripts/check-openapi.js",
+    "clean": "node scripts/clean.js",
     "dev": "npm run check:openapi && vite",
     "build": "npm run build:openapi && vite build",
     "preview": "npm run check:openapi && vite preview --port 5050",
