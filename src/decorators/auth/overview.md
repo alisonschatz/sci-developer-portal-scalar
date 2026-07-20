@@ -53,6 +53,20 @@ Esta credencial deve ser gerada pelo administrador da empresa dentro do sistema 
 > [!WARNING]
 > O Token de Cliente é exibido **uma única vez** no momento da criação. Guarde-o em um local seguro. Em caso de perda, será necessário revogá-lo e gerar um novo.
 
+<br />
+
+### 🛡️ Perfis de permissão do Token de Cliente
+
+O escopo de ações do token JWT nas demais APIs é determinado pelo **perfil do usuário** que gerou o Token de Cliente no SCI WEB. Avalie qual perfil é adequado **antes** de criar o token no passo anterior:
+
+| Perfil de Acesso | Escopo de Permissão |
+| :--- | :--- |
+| **Cliente** | Restrito à visualização e manipulação de dados da própria empresa. |
+| **Administrador** | Permite gerenciar múltiplos clientes ou acessar rotas administrativas. |
+
+> [!NOTE]
+> As permissões específicas por recurso (como leitura ou escrita) são detalhadas na documentação individual de cada endpoint.
+
 ---
 
 <br />
@@ -109,25 +123,7 @@ A API Auth disponibiliza dois fluxos distintos para a gestão do token JWT. Esco
 
 <br />
 
-## 5. Perfis de permissão
-
-O escopo de ações do token JWT nas demais APIs é determinado pelo **perfil do usuário** que gerou o Token de Cliente no SCI WEB:
-
-<br />
-
-| Perfil de Acesso | Escopo de Permissão |
-| :--- | :--- |
-| **Cliente** | Restrito à visualização e manipulação de dados da própria empresa. |
-| **Administrador** | Permite gerenciar múltiplos clientes ou acessar rotas administrativas. |
-
-> [!NOTE]
-> As permissões específicas por recurso (como leitura ou escrita) são detalhadas na documentação individual de cada endpoint.
-
----
-
-<br />
-
-## 6. Perguntas frequentes
+## 5. Perguntas frequentes
 
 <br />
 
