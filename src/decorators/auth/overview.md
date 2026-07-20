@@ -103,7 +103,7 @@ A API Auth disponibiliza dois fluxos distintos para a gestão do token JWT. Esco
 * **Quando utilizar:** Em rotinas automatizadas via código (background jobs), renovando o acesso antes que o token atual expire.
 
 > [!NOTE]
-> **Recomendado para Produção:** Evite trafegar o Token de Parceiro e Cliente em chamadas recorrentes. Prefira renovar o acesso via endpoint de refresh.
+> **Boa prática de segurança:** Evite trafegar o Token de Parceiro e Cliente em chamadas recorrentes. Prefira renovar o acesso via endpoint de refresh.
 
 ---
 
