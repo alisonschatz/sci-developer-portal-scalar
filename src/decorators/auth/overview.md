@@ -21,18 +21,15 @@ Para começar a consumir as APIs da SCI, siga esta ordem recomendada:
 
 ## 2. Credenciais de acesso
 
-Para gerar o token de acesso, você precisará de **duas credenciais distintas**. Elas funcionam de forma combinada como um par de autenticação (usuário e senha de integração):
+Para gerar o token JWT, você precisará de **duas credenciais distintas**. Elas combinam a identidade do integrador com a autorização da empresa cliente da SCI:
 
-<br />
-
-| Credencial | Detalhes e Utilização |
+| Credencial | O que identifica e como obter |
 | :--- | :--- |
-| **Token de Parceiro** | Identifica a aplicação parceira. Disponibilizado via contrato técnico com a SCI. |
-| **Token de Cliente** | Identifica a empresa/cliente. Gerado diretamente pelo cliente no sistema SCI WEB. |
+| **Token de Parceiro** | Identifica o sistema do integrador. Concedido após a aprovação do cadastro de [contrato de parceria com a SCI](https://visual.sci10.com.br/sistemas-de-gestao/). |
+| **Token de Cliente** | Identifica a empresa cliente da SCI que terá os dados acessados. Gerado diretamente no [SCI WEB](https://sciweb.com.br/). |
 
 > [!IMPORTANT]
-> O Token de Parceiro e o Token de Cliente **não são o token JWT**. Eles são as credenciais necessárias para **solicitar** o token JWT.
-
+> O Token de Parceiro e o Token de Cliente **não são o token JWT**. Eles são as credenciais necessárias para **solicitar e gerar** o seu token JWT no passo seguinte.
 <br />
 
 ### 🏢 Obtenção do Token de Parceiro
