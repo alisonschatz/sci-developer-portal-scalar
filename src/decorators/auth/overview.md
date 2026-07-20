@@ -1,4 +1,4 @@
-## 1. Sobre esta API
+## 1. Visão geral da API
 
 A **API Auth** é o serviço central de autenticação da SCI. Ela é responsável por gerar e renovar o token JWT utilizado por **todas as demais APIs disponíveis neste portal**.
 
@@ -7,21 +7,21 @@ A **API Auth** é o serviço central de autenticação da SCI. Ela é responsáv
 
 <br />
 
-### 🚀 Por onde começar
+### 🚀 Fluxo de integração
 
-Para autenticar e começar a consumir as APIs da SCI, siga estes passos:
+Para começar a consumir as APIs da SCI, siga esta ordem recomendada:
 
-1. [Obtenha suas duas credenciais de acesso](#2-antes-de-começar-duas-credenciais)
-2. [Gere o seu token JWT no portal](#3-como-gerar-o-token-jwt-aqui-no-portal)
-3. Explore e teste os endpoints nas demais abas da documentação.
+1. **Obtenha as credenciais:** Veja como adquirir o Token de Parceiro e o Token de Cliente na seção [Credenciais de acesso](#2-credenciais-de-acesso).
+2. **Gere o token JWT:** Autentique sua sessão de testes na seção [Autenticação no portal](#3-autenticação-no-portal).
+3. **Explore as APIs:** Navegue pelas demais abas do portal para testar os endpoints de negócio desejados.
 
 ---
 
 <br />
 
-## 2. Antes de começar: duas credenciais
+## 2. Credenciais de acesso
 
-Para gerar o token de acesso, você precisará de **duas credenciais distintas**. Elas funcionam como um par de autenticação (usuário e senha de integração):
+Para gerar o token de acesso, você precisará de **duas credenciais distintas**. Elas funcionam de forma combinada como um par de autenticação (usuário e senha de integração):
 
 <br />
 
@@ -35,7 +35,7 @@ Para gerar o token de acesso, você precisará de **duas credenciais distintas**
 
 <br />
 
-### 🤝 Como obter o Token de Parceiro
+### 🏢 Obtenção do Token de Parceiro
 
 O Token de Parceiro é fornecido pela equipe de integrações da SCI após a formalização da parceria. 
 
@@ -43,7 +43,7 @@ Caso a sua empresa ainda não possua esta credencial, solicite através da pági
 
 <br />
 
-### 👤 Como obter o Token de Cliente
+### 🔑 Obtenção do Token de Cliente
 
 Esta credencial deve ser gerada pelo administrador da empresa dentro do sistema **SCI WEB**:
 
@@ -60,7 +60,7 @@ Esta credencial deve ser gerada pelo administrador da empresa dentro do sistema 
 
 <br />
 
-## 3. Como gerar o token JWT aqui no portal
+## 3. Autenticação no portal
 
 Com as duas credenciais em mãos, você pode autenticar a sua sessão diretamente no portal:
 
@@ -80,13 +80,13 @@ Se as credenciais estiverem corretas, a API retornará o status `201 Created` co
 
 <br />
 
-## 4. Gerar JWT vs. Atualizar JWT
+## 4. Gerenciamento do token JWT
 
 A API Auth disponibiliza dois fluxos distintos para a gestão do token JWT. Escolha a operação adequada para cada etapa da sua integração:
 
 <br />
 
-### 🔑 Operação: Gerar JWT
+### ⚡ Fluxo: Gerar JWT
 
 * **Endpoint:** `POST /api/v1/auth/credencial/login`
 * **Objetivo:** Iniciar uma nova sessão de acesso.
@@ -98,7 +98,7 @@ A API Auth disponibiliza dois fluxos distintos para a gestão do token JWT. Esco
 
 <br />
 
-### 🔄 Operação: Atualizar JWT
+### 🔄 Fluxo: Atualizar JWT
 
 * **Endpoint:** `POST /api/v1/auth/refresh`
 * **Objetivo:** Renovar o tempo de validade do token atual sem retransmitir credenciais sensíveis.
@@ -147,7 +147,7 @@ O escopo de ações do token JWT nas demais APIs é determinado pelo **perfil do
 
 > [!TIP]
 > **Resposta:**
-> * **Primeiro acesso (ou token expirado):** Use **Gerar JWT** enviando o Token de Parceiro e Token de Cliente.
+> * **Primeiro acesso (or token expirado):** Use **Gerar JWT** enviando o Token de Parceiro e Token de Cliente.
 > * **Renovação contínua em produção:** Use **Atualizar JWT** para renovar a validade periodicamente antes que o token atual expire.
 
 </details>
