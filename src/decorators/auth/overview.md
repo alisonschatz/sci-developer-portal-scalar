@@ -75,7 +75,7 @@ O escopo de ações do token JWT nas demais APIs é determinado pelo **perfil do
 
 Com as duas credenciais em mãos, você pode autenticar a sua sessão diretamente no portal:
 
-1. Selecione a operação de login (`POST /api/v1/auth/credencial/login`) no menu lateral.
+1. Selecione a operação de login ([`POST /api/v1/auth/credencial/login`](#auth/tag/autenticação/POST/api/v1/auth/credencial/login)) no menu lateral.
 2. No painel **Authentication**, selecione o método **"Gerar JWT"**.
 3. Preencha os campos com suas credenciais:
    * **Username:** insira o seu **Token de Parceiro**
@@ -85,7 +85,7 @@ Com as duas credenciais em mãos, você pode autenticar a sua sessão diretament
 Se as credenciais estiverem corretas, a API retornará o status `201 Created` contendo o campo `token`.
 
 > [!TIP]
-> Sessão autenticada com sucesso. Como descrito na [Visão geral](#auth/description/1-visão-geral-da-api), esse token já vale para as demais APIs do portal — não é necessário copiá-lo.
+> Como descrito na [Visão geral](#auth/description/1-visão-geral-da-api), esse token já vale para as demais APIs do portal.
 
 ---
 
@@ -110,7 +110,7 @@ A API Auth disponibiliza dois fluxos distintos para a gestão do token JWT. Esco
 
 | Campo | Detalhe |
 | :--- | :--- |
-| **Endpoint** | `POST /api/v1/auth/credencial/login` |
+| **Endpoint** | [`POST /api/v1/auth/credencial/login`](#auth/tag/autenticação/POST/api/v1/auth/credencial/login) |
 | **Objetivo** | Iniciar uma nova sessão de acesso. |
 | **Requer** | Token de Parceiro + Token de Cliente. |
 
@@ -123,12 +123,12 @@ A API Auth disponibiliza dois fluxos distintos para a gestão do token JWT. Esco
 
 | Campo | Detalhe |
 | :--- | :--- |
-| **Endpoint** | `POST /api/v1/auth/refresh` |
+| **Endpoint** | [`POST /api/v1/auth/refresh`](#auth/tag/autenticação/POST/api/v1/auth/refresh) |
 | **Objetivo** | Renovar o tempo de validade do token atual sem retransmitir credenciais sensíveis. |
 | **Requer** | Token JWT atual (ainda válido). |
 
 > [!NOTE]
-> **Boa prática de segurança:** Evite trafegar o Token de Parceiro e Cliente em chamadas recorrentes. Prefira renovar o acesso via endpoint de refresh.
+> **Boa prática de segurança:** Evite trafegar o Token de Parceiro e Cliente em chamadas recorrentes. Prefira renovar o acesso via [endpoint de refresh](#auth/tag/autenticação/POST/api/v1/auth/refresh).
 
 ---
 
@@ -168,6 +168,6 @@ A API Auth disponibiliza dois fluxos distintos para a gestão do token JWT. Esco
 <summary><b>4. O que fazer se o token expirar durante meus testes no portal?</b></summary>
 
 > [!TIP]
-> **Resposta:** Você não precisa digitar suas credenciais novamente. Acesse a rota de login (`POST /api/v1/auth/credencial/login`) no menu lateral e clique em **Send** para renovar a sessão do portal.
+> **Resposta:** Você não precisa digitar suas credenciais novamente. Acesse a rota de login ([`POST /api/v1/auth/credencial/login`](#auth/tag/autenticação/POST/api/v1/auth/credencial/login)) no menu lateral e clique em **Send** para renovar a sessão do portal.
 
 </details>
