@@ -11,7 +11,7 @@ Para utilizar as APIs da SCI, siga este fluxo passo a passo:
 
 1. [Obtenha suas duas credenciais de acesso](#auth/description/2-antes-de-começar-duas-credenciais)
 2. [Gere o seu token JWT de teste no portal](#auth/description/3-como-gerar-o-token-jwt-aqui-no-portal)
-3. Explore as APIs desejadas nas outras abas da documentação (o token gerado já estará ativo).
+3. Explore as APIs desejadas nas outras abas da documentação.
 
 ---
 
