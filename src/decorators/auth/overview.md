@@ -104,8 +104,8 @@ O escopo de ações que o token JWT pode executar nas demais APIs do portal é d
 
 | Perfil de acesso | Escopo e permissões |
 | :--- | :--- |
-| **Módulo Cliente** | Permite visualizar e manipular dados exclusivamente da própria empresa vinculada. |
-| **Módulo Administrador** | Concede acesso estendido para gerenciar múltiplos clientes ou acessar rotas administrativas do escritório. |
+| **Cliente** | Permite visualizar e manipular dados exclusivamente da própria empresa vinculada. |
+| **Administrador** | Concede acesso estendido para gerenciar múltiplos clientes ou acessar rotas administrativas do escritório. |
 
 > [!NOTE]
 > O detalhamento das permissões específicas exigidas por cada rota (por exemplo, permissão de leitura ou escrita) pode ser consultado diretamente na documentação de cada API individual neste portal.

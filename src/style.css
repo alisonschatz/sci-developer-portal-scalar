@@ -49,3 +49,28 @@ body {
 :root {
   --scalar-color-accent: var(--sci-navy);
 }
+
+/* ============================================================================
+   Ajuste de Tabelas (Prevenção de quebra de palavras no Scalar)
+   ============================================================================ */
+
+/* 1. Impede a quebra/corte de palavras no meio dentro das células e cabeçalhos */
+.scalar-api-reference table th,
+.scalar-api-reference table td {
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  word-wrap: normal !important;
+  hyphens: none !important;
+}
+
+/* 2. Mantém os títulos das colunas (cabeçalho) em linha única */
+.scalar-api-reference table th {
+  white-space: nowrap;
+}
+
+/* 3. Se a tabela for mais larga que a coluna, permite rolagem horizontal suave */
+.scalar-api-reference table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+}
