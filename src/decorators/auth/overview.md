@@ -11,8 +11,8 @@ A **API Auth** é o serviço central de autenticação da SCI. Ela é responsáv
 
 Para começar a consumir as APIs da SCI, siga esta ordem recomendada:
 
-1. **Obtenha as credenciais:** Veja como adquirir o Token de Parceiro e o Token de Cliente na seção [Credenciais de acesso](#2-credenciais-de-acesso).
-2. **Gere o token JWT:** Autentique sua sessão de testes na seção [Autenticação no portal](#3-autenticação-no-portal).
+1. **Obtenha as credenciais:** Veja como adquirir o Token de Parceiro e o Token de Cliente na seção [Credenciais de acesso](#auth/description/2-credenciais-de-acesso).
+2. **Gere o token JWT:** Autentique sua sessão de testes na seção [Autenticação no portal](#auth/description/3-autenticação-no-portal).
 3. **Explore as APIs:** Navegue pelas demais abas do portal para testar os endpoints de negócio desejados.
 
 ---
@@ -147,7 +147,7 @@ O escopo de ações do token JWT nas demais APIs é determinado pelo **perfil do
 
 > [!TIP]
 > **Resposta:**
-> * **Primeiro acesso (or token expirado):** Use **Gerar JWT** enviando o Token de Parceiro e Token de Cliente.
+> * **Primeiro acesso (ou token expirado):** Use **Gerar JWT** enviando o Token de Parceiro e Token de Cliente.
 > * **Renovação contínua em produção:** Use **Atualizar JWT** para renovar a validade periodicamente antes que o token atual expire.
 
 </details>
