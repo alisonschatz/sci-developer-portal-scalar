@@ -1,11 +1,14 @@
 # Chaveado pelo nome EXATO da tag (tags[].name) no spec de origem desta API.
 # Tag sem entrada aqui mantém a descrição original vinda do backend.
 #
-# Limpo de propósito (2026-07) — sem texto personalizado ainda pronto.
-# Descrições de tag são conteúdo de "engenharia de escrita voltada ao
-# cliente" (detalhe de permissão por recurso) — entram aqui quando
-# prontas. Nome real confirmado no spec de produção: "Autenticação".
-#
-# Autenticação:
-#   description: |
-#     O que esse grupo de endpoints permite fazer, e por qual perfil.
+# Nome real confirmado no spec de produção (auth.json): "Autenticação".
+# O link abaixo usa o formato de âncora confirmado direto no código-fonte
+# do Scalar (node_modules/@scalar/workspace-store/dist/navigation/get-navigation-options.js,
+# função getNavigationOptions — headings do overview viram
+# "{documentId}/description/{slug}") — ver docs/arquitetura.md, decisão 20.
+
+Autenticação:
+  description: |
+    Geração e renovação do token JWT usado por **todas as APIs deste portal** — não só as operações listadas aqui.
+
+    Primeira vez? Veja a [Visão geral](#auth/description/1-visão-geral-da-api) para o passo a passo completo: as credenciais necessárias, como gerar o token, e quando usar cada uma das duas operações abaixo.

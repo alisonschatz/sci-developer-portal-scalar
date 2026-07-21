@@ -11,8 +11,8 @@ A **API Auth** é o serviço central de autenticação da SCI. Ela é responsáv
 
 Para começar a consumir as APIs da SCI, siga esta ordem recomendada:
 
-1. **Obtenha as credenciais:** Veja como adquirir o Token de Parceiro e o Token de Cliente na seção [Credenciais de acesso](#2-credenciais-de-acesso).
-2. **Gere o token JWT:** Autentique sua sessão de testes na seção [Autenticação no portal](#3-autenticação-no-portal).
+1. **Obtenha as credenciais:** Veja como adquirir o Token de Parceiro e o Token de Cliente na seção [Credenciais de acesso](#auth/description/2-credenciais-de-acesso).
+2. **Gere o token JWT:** Autentique sua sessão de testes na seção [Autenticação no portal](#auth/description/3-autenticação-no-portal).
 3. **Explore as APIs:** Navegue pelas demais abas do portal para testar os endpoints de negócio desejados.
 
 ---
@@ -130,7 +130,7 @@ A API Auth disponibiliza dois fluxos distintos para a gestão do token JWT. Esco
 <summary><b>1. Preciso gerar um token diferente para cada API do portal?</b></summary>
 
 > [!NOTE]
-> **Resposta:** Não. Ele é único e vale automaticamente para todas as APIs do portal (veja [Autenticação no portal](#3-autenticação-no-portal)).
+> **Resposta:** Não. Ele é único e vale automaticamente para todas as APIs do portal (veja [Autenticação no portal](#auth/description/3-autenticação-no-portal)).
 
 </details>
 
@@ -148,7 +148,7 @@ A API Auth disponibiliza dois fluxos distintos para a gestão do token JWT. Esco
 <summary><b>3. Perdi o Token de Cliente. Como recuperar?</b></summary>
 
 > [!WARNING]
-> **Resposta:** Não é possível recuperá-lo. Acesse o **SCI WEB**, revogue o token antigo e gere um novo (veja [Obtenção do Token de Cliente](#obtenção-do-token-de-cliente)).
+> **Resposta:** Não é possível recuperá-lo. Acesse o **SCI WEB**, revogue o token antigo e gere um novo (veja [Obter Token de Cliente](#auth/description/obter-token-de-cliente)).
 
 </details>
 

@@ -1,26 +1,39 @@
 # Chaveado por "MÉTODO /caminho" (estável mesmo se o operationId mudar —
 # ver comentário no topo de src/plugins/business-plugin.js).
 #
-# `summary`/`description` foram removidos de propósito (limpeza pedida em
-# 2026-07) — sem texto personalizado ainda pronto, o summary/description
-# original do backend aparece sem modificação. Isso é conteúdo de
-# "engenharia de escrita voltada ao cliente" — entra aqui quando o texto
-# final estiver pronto, chaveado do mesmo jeito.
+# `summary`/`description` explicam cada operação em detalhe — os links
+# usam o formato de âncora confirmado no código-fonte do Scalar
+# (node_modules/@scalar/workspace-store/dist/navigation/get-navigation-options.js
+# — headings do overview viram "{documentId}/description/{slug}"; ver
+# docs/arquitetura.md, decisão 20).
 #
-# `postResponseScript` NÃO foi removido — não é texto de marketing, é o
-# mecanismo funcional que faz o token ser compartilhado entre as APIs
-# (vira a extensão `x-post-response`, formato Postman, executado pelo
-# Scalar API Client depois de cada "Test Request" bem-sucedido). Grava o
-# token em `pm.globals`, variável GLOBAL do workspace do Scalar — visível
-# em QUALQUER documento aberto no mesmo portal, não só na Auth.
-#
-# O nome da variável ('sci_auth_token') precisa bater exatamente com
-# SHARED_TOKEN_VARIABLE em apis.manifest.js — scripts/verify-shared-token.js
-# checa isso automaticamente no pipeline de build.
+# `postResponseScript` vira a extensão `x-post-response` (formato
+# Postman), executado pelo Scalar API Client depois de cada "Test
+# Request" bem-sucedido. Grava o token em `pm.globals`, variável GLOBAL
+# do workspace do Scalar — visível em QUALQUER documento aberto no mesmo
+# portal, não só na Auth. O nome da variável ('sci_auth_token') precisa
+# bater exatamente com SHARED_TOKEN_VARIABLE em apis.manifest.js —
+# scripts/verify-shared-token.js checa isso automaticamente no build.
 #
 # Ver README, seção "Como o token é compartilhado entre as APIs".
 
 "POST /api/v1/auth/credencial/login":
+  summary: Gerar token JWT
+  description: |
+    Gera um novo token JWT com validade limitada para autenticar requisições nas APIs da SCI.
+
+    ### 🔑 Como autenticar nesta rota
+    Forneça as duas credenciais de acesso através do cabeçalho **HTTP Basic**:
+    * **Username:** informe o seu **Token de Parceiro**.
+    * **Password:** informe o seu **Token de Cliente**.
+
+    > [!TIP]
+    > **Sessão ativa:** O token gerado por este endpoint fica disponível automaticamente para testar as demais APIs do portal, sem necessidade de copiar e colar.
+
+    > [!TIP]
+    > **Precisa de ajuda com os fluxos?**
+    > * Siga o guia [Autenticação no portal](#auth/description/3-autenticação-no-portal) para saber onde obter suas credenciais e testar na prática.
+    > * Confira a seção [Gerenciamento do token JWT](#auth/description/4-gerenciamento-do-token-jwt) para entender quando utilizar o Login ou o Refresh em sua aplicação.
   postResponseScript: |
     const data = pm.response.json();
     if (data && typeof data.token === 'string' && data.token) {
@@ -31,6 +44,21 @@
     }
 
 "POST /api/v1/auth/refresh":
+  summary: Atualizar token JWT
+  description: |
+    Renova o tempo de expiração do token JWT atual sem a necessidade de retransmitir credenciais sensíveis.
+
+    ### ⏳ Como autenticar nesta rota
+    Forneça o seu **token JWT atual** (ainda válido) no cabeçalho de autorização:
+    * **Authorization:** `Bearer <seu_token_jwt_atual>`
+
+    > [!NOTE]
+    > **Token expirado?** Se o seu token já expirou totalmente, você precisará gerar um novo através da rota [`POST /api/v1/auth/credencial/login`](#auth/tag/autenticação/POST/api/v1/auth/credencial/login).
+
+    > [!TIP]
+    > **Precisa de ajuda com os fluxos?**
+    > * Entenda as boas práticas de renovação e segurança na seção [Gerenciamento do token JWT](#auth/description/4-gerenciamento-do-token-jwt).
+    > * Veja mais detalhes sobre sessões em [Autenticação no portal](#auth/description/3-autenticação-no-portal).
   postResponseScript: |
     const data = pm.response.json();
     if (data && typeof data.token === 'string' && data.token) {

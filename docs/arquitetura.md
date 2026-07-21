@@ -863,11 +863,28 @@ nova = WeakSet novo), e `installTokenStorageGuard()` limpa a chave
 solta de versões anteriores (`removeItem('__tokenBridgeGuardInstalled')`)
 na primeira vez que roda, pra quem já tinha essa versão com bug.
 
-## 20. Links âncora dentro do overview — o algoritmo de slug real, e por que emoji de número quebra
+## 20. Links âncora dentro do overview — o algoritmo de slug real, e o formato completo do id (correção de uma análise anterior incompleta)
 
-A pedido de deixar o overview "mais intuitivo" — com links clicáveis em vez de só texto referenciando "a seção abaixo" — foi preciso confirmar, antes de escrever qualquer link, como o Scalar gera o `id` de cada heading do markdown (sem isso, um link `[texto](#algo)` só funciona por sorte).
+A pedido de deixar o overview "mais intuitivo" — com links clicáveis em vez de só texto referenciando "a seção abaixo" — foi preciso confirmar, antes de escrever qualquer link, como o Scalar gera o `id` de cada heading, tag e operação (sem isso, um link `[texto](#algo)` só funciona por sorte).
 
-Achado no código-fonte, não em documentação: quem renderiza `info.description` (nosso `overview.md`) é `InfoDescription.vue` (`node_modules/@scalar/api-reference/dist/blocks/scalar-info-block/`), que usa um slugger de verdade — `node_modules/@scalar/helpers/dist/string/slugify.js`, não o slugify básico (`toLowerCase + replace espaço`) que vi antes em `ScalarMarkdown.vue.script.js` para outros contextos (como descrição de operação). O algoritmo real:
+**Correção importante:** a primeira versão desta decisão concluiu que headings do overview usam um slug "solto" (`#1-duas-credenciais-...`, sem nenhum prefixo de documento). Isso estava **incompleto** — a análise parou em `InfoDescription.vue`, que recebe uma função `headingSlugGenerator` de fora, sem seguir até onde essa função é de fato construída. O usuário testou o portal de verdade e usou links no formato `#auth/description/1-visão-geral-da-api` — diferente do que eu tinha documentado —, o que forçou uma reconferência mais cuidadosa.
+
+O ponto real fica em `node_modules/@scalar/workspace-store/dist/navigation/get-navigation-options.js`, função `getNavigationOptions()` — a fonte única de todo id de navegação do Scalar (headings, tags, operações, models, webhooks, tudo). Os formatos que importam aqui:
+
+```js
+// heading do overview:
+`${documentId}/description/${slug}`
+
+// tag:
+`${documentId}/tag/${slugify(tag.name)}`
+
+// operação (dentro de uma tag):
+`${documentId}/tag/${slugify(tag.name)}/${METODO_MAIUSCULO}${caminho}`
+```
+
+Onde `documentId = slugify(nomeDoDocumento)` — para a Auth, `auth`. Confirmado batendo exatamente com os links reais que o usuário já tinha testado: `#auth/description/1-visão-geral-da-api` (heading), `#auth/tag/autenticação/POST/api/v1/auth/credencial/login` (operação).
+
+O algoritmo de slug em si (`node_modules/@scalar/helpers/dist/string/slugify.js`) continua o mesmo já confirmado:
 
 ```js
 const RE_NON_WORD = /[^\p{L}\p{M}\p{N}\s_-]/gu;
@@ -875,17 +892,16 @@ const RE_NON_WORD = /[^\p{L}\p{M}\p{N}\s_-]/gu;
 // espaços e underscores viram hífen, hífens nas pontas são cortados
 ```
 
-Duas consequências práticas, verificadas rodando o algoritmo de verdade
-(não só lendo):
+Duas consequências práticas, verificadas rodando o algoritmo de verdade (não só lendo):
 
-1. **Emoji "normais" (🔑🚀👥❓) são removidos de forma limpa** — são categoria Unicode "Symbol", fora do que o regex preserva. Um heading `## 1. 🔑 Duas credenciais...` vira o slug `1-duas-credenciais-...`, sem nenhum resquício do emoji.
-2. **Emoji de número em círculo (1️⃣2️⃣3️⃣) NÃO são removidos** — são sequências que incluem caracteres Unicode de categoria "Mark" (variation selector + combining enclosing keycap), que o regex trata como parte de "palavra" e preserva. Um heading com `1️⃣` no texto gera um slug com o emoji literal dentro (`1️⃣-teste-...`) — praticamente impossível de acertar escrevendo um link à mão, e frágil mesmo copiando/colando (não é óbvio visualmente que são 3 caracteres Unicode diferentes, não 1).
+1. **Emoji "normais" (🔑🚀👥❓) são removidos de forma limpa** — categoria Unicode "Symbol", fora do que o regex preserva.
+2. **Emoji de número em círculo (1️⃣2️⃣3️⃣) NÃO são removidos** — incluem caracteres de categoria "Mark" (variation selector + combining enclosing keycap) que o regex preserva. Evitados nos headings por esse motivo.
 
-Por isso o overview usa **dígito comum + ponto + emoji simples** (`## 1. 🔑 Texto`) para os headings numerados, nunca emoji de teclado numérico. Cada link do arquivo foi conferido rodando o algoritmo real (não estimado) contra o texto exato de cada heading — inclusive um H3 sem prefixo numérico (`### 👤 Token de cliente` → `#token-de-cliente`, sem o "2-" que o H2 pai tem) e um heading que teve o texto encurtado no meio da escrita, o que muda o slug (`Gerar JWT × Atualizar JWT — qual usar` → `Gerar JWT × Atualizar JWT`, slug final sem o sufixo).
+Cada link do `overview.md`, `tags.yaml` e `descriptions.yaml` foi conferido rodando o algoritmo completo (`documentId/description/slug`, ou `documentId/tag/slug`, ou `documentId/tag/slug/MÉTODOcaminho`, conforme o alvo) contra o texto exato de cada heading/tag/operação — não estimado, não reaproveitado de uma versão anterior.
 
-**O link cruzado pra RH Net Social** (`[RH Net Social](#rhnetsocial)`) usa o mesmo hash-based routing já confirmado nas decisões anteriores (o slug da API no manifesto) — clicar deveria trocar de documento, não só rolar a página. Isso não foi possível confirmar visualmente (sem navegador); é a mesma mecânica de `window.location.hash = slug` já usada e documentada, aplicada agora via link de markdown em vez de JS.
+**Links cruzados entre documentos** (`#rhnetsocial`, pra trocar de API) usam só o `documentId` sozinho (`generateId` retorna `documentId` puro pro tipo `'document'`) — mesmo hash-based routing já confirmado nas decisões anteriores. Não foi possível confirmar visualmente o clique trocando de fato de documento (sem navegador) — mas o formato do id está confirmado no código-fonte.
 
-**Nota:** o texto passou por uma segunda rodada (tom mais completo de volta, depois de uma primeira tentativa mais enxuta demais) — os títulos mudaram de novo, então os slugs também. Cada link foi reconferido rodando o algoritmo de novo contra o texto final, não reaproveitado da rodada anterior — é fácil um heading mudar de texto e um link ficar apontando pro slug antigo, silenciosamente quebrado.
+**Lição registrada:** uma investigação que para no primeiro nível de indireção (uma prop recebida de fora, sem seguir até onde ela é implementada de verdade) pode parecer completa e ainda assim estar errada. A correção não veio de mais leitura de código por iniciativa própria — veio de um usuário testando de verdade e usando um formato diferente do documentado, o que forçou reconferir. Vale lembrar disso antes de declarar "confirmado" em investigações futuras deste tipo.
 
 ## O que foi testado de verdade neste ambiente
 
