@@ -9,6 +9,10 @@
 
 Autenticação:
   description: |
-    Geração e renovação do token JWT usado por **todas as APIs deste portal** — não só as operações listadas aqui.
+    Endpoints para geração e renovação do token JWT utilizado por **todas as demais APIs** deste portal.
 
-    Primeira vez? Veja a [Visão geral](#auth/description/1-visão-geral-da-api) para o passo a passo completo: as credenciais necessárias, como gerar o token, e quando usar cada uma das duas operações abaixo.
+    > [!TIP]
+    > **Primeira integração?**
+    > * Consulte a [Visão geral da API](#auth/description/1-visão-geral-da-api) para compreender o fluxo completo.
+    > * Veja como obter o **Token de Parceiro** e o **Token de Cliente** na seção [Credenciais de acesso](#auth/description/2-credenciais-de-acesso).
+    > * Confira a diferença entre as operações **Gerar JWT** e **Atualizar JWT** na seção [Gerenciamento do token JWT](#auth/description/4-gerenciamento-do-token-jwt).
