@@ -98,7 +98,7 @@ export function buildScalarConfiguration(basePath = '/') {
     // ── Sidebar & navegação ──────────────────────────────────────────
     showSidebar: true,
     hideSearch: false,
-    defaultOpenFirstTag: false,
+    defaultOpenFirstTag: true,
     defaultOpenAllTags: false,
     operationTitleSource: 'summary',
     showOperationId: false,
