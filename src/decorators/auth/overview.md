@@ -11,8 +11,8 @@ A **API Auth** é o serviço central de autenticação da SCI. Ela é responsáv
 
 Para começar a consumir as APIs da SCI, siga esta ordem recomendada:
 
-1. **Obtenha as credenciais:** Veja como adquirir o Token de Parceiro e o Token de Cliente na seção [Credenciais de acesso](#auth/description/2-credenciais-de-acesso).
-2. **Gere o token JWT:** Autentique sua sessão de testes na seção [Autenticação no portal](#auth/description/3-autenticação-no-portal).
+1. **Obtenha as credenciais:** Veja como adquirir o Token de Parceiro e o Token de Cliente na seção [Credenciais de acesso](#2-credenciais-de-acesso).
+2. **Gere o token JWT:** Autentique sua sessão de testes na seção [Autenticação no portal](#3-autenticação-no-portal).
 3. **Explore as APIs:** Navegue pelas demais abas do portal para testar os endpoints de negócio desejados.
 
 ---
@@ -26,13 +26,17 @@ Para gerar o token JWT, você precisará de **duas credenciais distintas**. Elas
 | Credencial | O que identifica e como obter |
 | :--- | :--- |
 | **Token de Parceiro** | Identifica o sistema do integrador. Concedido após a aprovação do cadastro de [contrato de parceria com a SCI](https://visual.sci10.com.br/sistemas-de-gestao/). |
-| **Token de Cliente** | Identifica a empresa cliente da SCI que terá os dados acessados. Gerado diretamente no [SCI WEB](https://sciweb.com.br/). |
+| **Token de Cliente** | Identifica a empresa cliente da SCI que terá os dados acessados. Gerado no [SCI WEB](https://sciweb.com.br/) **exclusivamente através do Módulo Cliente**. |
 
 > [!IMPORTANT]
-> O Token de Parceiro e o Token de Cliente **não são o token JWT**. Eles são as credenciais necessárias para **solicitar e gerar** o seu token JWT no passo seguinte.
+> **Importante:** O Token de Parceiro e o Token de Cliente **não são o token JWT**. Eles são as credenciais usadas para **gerar o JWT** no passo seguinte.
+
+> [!CAUTION]
+> **Atenção:** Trate o Token de Parceiro e de Cliente como **credenciais confidenciais**. Nunca os exponha em **front-end, logs ou repositórios públicos**.
+
 <br />
 
-### 🏢 Obtenção do Token de Parceiro
+### 🤝 Obter Token de Parceiro
 
 O Token de Parceiro é fornecido pela equipe de integrações da SCI após a formalização da parceria. 
 
@@ -40,32 +44,21 @@ Caso a sua empresa ainda não possua esta credencial, solicite através da pági
 
 <br />
 
-### 🔑 Obtenção do Token de Cliente
+### 🔑 Obter Token de Cliente
 
-Esta credencial deve ser gerada pelo administrador da empresa dentro do sistema **SCI WEB**:
+Esta credencial deve ser gerada pela empresa dentro do **Módulo Cliente** no sistema **SCI WEB**:
 
-1. Acesse o **SCI WEB** com uma conta de usuário ativa.
+1. Acesse o **SCI WEB** selecionando o **Módulo Cliente** com uma conta de usuário ativa.
 2. Clique no nome do usuário no canto superior direito.
 3. Selecione a opção **"Gerar token API"**.
 4. Na tela *Token de Integração SCI WEB*, clique em **"Criar novo token"**.
 5. Atribua um nome identificador (ex: *Integração RH*) e clique em **"Continuar"**.
 
-> [!WARNING]
-> O Token de Cliente é exibido **uma única vez** no momento da criação. Guarde-o em um local seguro. Em caso de perda, será necessário revogá-lo e gerar um novo.
-
-<br />
-
-### 🛡️ Perfis de permissão do Token de Cliente
-
-O escopo de ações do token JWT nas demais APIs é determinado pelo **perfil do usuário** que gerou o Token de Cliente no SCI WEB. Avalie qual perfil é adequado **antes** de criar o token no passo anterior:
-
-| Perfil de Acesso | Escopo de Permissão |
-| :--- | :--- |
-| **Módulo Cliente** | Restrito à visualização e manipulação de dados da própria empresa. |
-| **Módulo Administrador** | Permite gerenciar múltiplos clientes ou acessar rotas administrativas. |
-
 > [!NOTE]
-> As permissões específicas por recurso (como leitura ou escrita) são detalhadas na documentação individual de cada endpoint.
+> **Regra de Acesso:** A autenticação da API é aceita **apenas** quando o Token de Cliente for gerado a partir do **Módulo Cliente** no SCI WEB.
+
+> [!WARNING]
+> **Atenção:** O Token de Cliente é exibido **uma única vez** no momento da criação. Guarde-o em um local seguro. Em caso de perda, será necessário revogá-lo e gerar um novo.
 
 ---
 
@@ -85,7 +78,7 @@ Com as duas credenciais em mãos, você pode autenticar a sua sessão diretament
 Se as credenciais estiverem corretas, a API retornará o status `201 Created` contendo o campo `token`.
 
 > [!TIP]
-> Como descrito na [Visão geral](#auth/description/1-visão-geral-da-api), esse token já vale para as demais APIs do portal.
+> Como descrito na [Visão geral](#1-visão-geral-da-api), esse token já vale para as demais APIs do portal.
 
 ---
 
@@ -97,16 +90,7 @@ A API Auth disponibiliza dois fluxos distintos para a gestão do token JWT. Esco
 
 <br />
 
-### 🧭 Qual fluxo utilizar
-
-| Fluxo | Quando usar |
-| :--- | :--- |
-| **[Gerar JWT](#auth/description/fluxo-gerar-jwt)** | Primeiro acesso ou token expirado |
-| **[Atualizar JWT](#auth/description/fluxo-atualizar-jwt)** | Renovação automática em produção |
-
-<br />
-
-### ⚡ Fluxo: Gerar JWT
+### 🌟 Gerar JWT
 
 | Campo | Detalhe |
 | :--- | :--- |
@@ -119,7 +103,7 @@ A API Auth disponibiliza dois fluxos distintos para a gestão do token JWT. Esco
 
 <br />
 
-### 🔄 Fluxo: Atualizar JWT
+### ⏳ Atualizar JWT
 
 | Campo | Detalhe |
 | :--- | :--- |
@@ -142,7 +126,7 @@ A API Auth disponibiliza dois fluxos distintos para a gestão do token JWT. Esco
 <summary><b>1. Preciso gerar um token diferente para cada API do portal?</b></summary>
 
 > [!NOTE]
-> **Resposta:** Não. Ele é único e vale automaticamente para todas as APIs do portal (veja [Autenticação no portal](#auth/description/3-autenticação-no-portal)).
+> **Resposta:** Não. Ele é único e vale automaticamente para todas as APIs do portal (veja [Autenticação no portal](#3-autenticação-no-portal)).
 
 </details>
 
@@ -160,7 +144,7 @@ A API Auth disponibiliza dois fluxos distintos para a gestão do token JWT. Esco
 <summary><b>3. Perdi o Token de Cliente. Como recuperar?</b></summary>
 
 > [!WARNING]
-> **Resposta:** Não é possível recuperá-lo. Acesse o **SCI WEB**, revogue o token antigo e gere um novo (veja [Obtenção do Token de Cliente](#auth/description/obtenção-do-token-de-cliente)).
+> **Resposta:** Não é possível recuperá-lo. Acesse o **SCI WEB**, revogue o token antigo e gere um novo (veja [Obtenção do Token de Cliente](#obtenção-do-token-de-cliente)).
 
 </details>
 
